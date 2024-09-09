@@ -2,7 +2,7 @@ use poseidon_bn254::{hash_with_domain, Field, Fr, PrimeField};
 use rand::{random, thread_rng};
 use zktrie::{HashField};
 use zktrie_rust::hash::Hash as _;
-use crate::hash::{HashScheme, PoseidonHashScheme, HashOutput};
+use crate::hash::{HashScheme, Poseidon, HashOutput};
 
 #[ctor::ctor]
 fn set_hash_scheme() {
@@ -23,7 +23,7 @@ fn test_hash() {
         let a = Fr::random(thread_rng()).as_canonical_repr();
         let b = Fr::random(thread_rng()).as_canonical_repr();
 
-        let out = PoseidonHashScheme::hash(kind, [a, b]).unwrap();
+        let out = Poseidon::hash(kind, [a, b]).unwrap();
         let expected = HashField::simple_hash_scheme(a.into(), b.into(), kind);
         assert_eq!(out.as_slice(), expected.as_ref());
     }

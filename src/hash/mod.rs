@@ -1,3 +1,4 @@
+//! Traits, helpers, and type definitions for hashing.
 use alloy_primitives::FixedBytes;
 
 mod poseidon;
@@ -11,6 +12,7 @@ pub const HASH_SIZE: usize = 32;
 
 const HASH_DOMAIN_ELEMS_BASE: u64 = 256;
 
+/// A 32-byte hash.
 pub type ZkHash = FixedBytes<HASH_SIZE>;
 
 /// The trait for hashing output.
