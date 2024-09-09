@@ -1,12 +1,14 @@
 use super::KVDatabase;
 use sled::Batch;
 
+/// A key-value store backed by `sled`.
 #[derive(Clone)]
 pub struct SledDb {
     db: sled::Tree,
 }
 
 impl SledDb {
+    /// Create a new `SledDb` wrapping the given `sled::Tree`.
     pub fn new(db: sled::Tree) -> Self {
         Self { db }
     }

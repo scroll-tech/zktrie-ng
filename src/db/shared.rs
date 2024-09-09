@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 /// Readonly version of the database, could be shared.
 #[derive(Clone)]
-pub struct SharedDb<Db: KVDatabase = HashMapDb>(Rc<Db>);
+pub struct SharedDb<Db = HashMapDb>(Rc<Db>);
 
 /// Error type for SharedZkDatabase
 #[derive(Debug, thiserror::Error)]

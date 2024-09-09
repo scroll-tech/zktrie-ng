@@ -5,10 +5,16 @@ mod hash_map;
 pub use hash_map::HashMapDb;
 
 #[cfg(feature = "sled")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sled")))]
 mod sled;
 #[cfg(feature = "sled")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sled")))]
 pub use sled::SledDb;
 
+/// Store key-value pairs.
+///
+/// This trait is used to abstract over different key-value stores,
+/// works likes a `HashMap<Box<[u8]>, Box<[u8]>>`.
 pub trait KVDatabase: Clone {
     type Error;
 

@@ -4,7 +4,7 @@ use crate::db::{HashMapDb, KVDatabase, SharedDb};
 ///
 /// Using a read-only database as source, and record all changes to another database.
 #[derive(Clone)]
-pub struct UpdateDb<WriteDb: KVDatabase = HashMapDb, CacheDb: KVDatabase = SharedDb<SharedDb>> {
+pub struct UpdateDb<WriteDb = HashMapDb, CacheDb = SharedDb<SharedDb>> {
     write: WriteDb,
     cache: CacheDb,
 }
@@ -12,12 +12,14 @@ pub struct UpdateDb<WriteDb: KVDatabase = HashMapDb, CacheDb: KVDatabase = Share
 /// Error type for UpdateDb
 #[derive(Debug, thiserror::Error)]
 pub enum UpdateDbError<WriteDbErr, CacheDbErr> {
+    #[error("write db error: {0}")]
     WriteDb(WriteDbErr),
+    #[error("cache db error: {0}")]
     CacheDb(CacheDbErr),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum UpdateDbValue<W, C> {
+enum UpdateDbValue<W, C> {
     WriteDb(W),
     CacheDb(C),
 }
