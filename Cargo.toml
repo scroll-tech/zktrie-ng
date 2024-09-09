@@ -1,0 +1,31 @@
+[package]
+name = "zktrie-ng"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy-primitives = "0.8.0"
+hashbrown = { version = "0.14", optional = true }
+num-derive = "0.4"
+poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master" }
+sled = { version = "0.34", optional = true }
+strum = { version = "0.26", features = ["derive"] }
+thiserror = "1.0"
+
+[dev-dependencies]
+ctor = "0.2"
+rand = "0.8"
+zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features= ["rs_zktrie"] }
+zktrie_rust = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main" }
+
+[features]
+default = ["bn254", "hashbrown"]
+
+hashbrown = ["dep:hashbrown"]
+
+bn254 = ["poseidon-bn254/bn254"]
+halo2curves_v1 = ["poseidon-bn254/halo2curves_v1"]
+halo2curves_v3 = ["poseidon-bn254/halo2curves_v3"]
+
+sled = ["dep:sled"]
+sled_compression = ["sled", "sled/zstd"]
