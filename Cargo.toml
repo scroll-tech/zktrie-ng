@@ -3,10 +3,15 @@ name = "zktrie-ng"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata.docs.rs]
+features = ["sled"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 alloy-primitives = "0.8.0"
 hashbrown = { version = "0.14", optional = true }
 num-derive = "0.4"
+num-traits = "0.2"
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master" }
 sled = { version = "0.34", optional = true }
 strum = { version = "0.26", features = ["derive"] }
