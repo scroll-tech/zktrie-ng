@@ -21,7 +21,6 @@ pub trait HashOutput: Copy + Clone + Sized {
     fn as_canonical_repr(&self) -> ZkHash;
 }
 
-
 /// HashScheme is a trait that defines how to hash two 32-byte arrays with a domain.
 pub trait HashScheme {
     /// The error type for hashing.
@@ -40,10 +39,7 @@ pub trait HashScheme {
     /// [`ZkHash`] with [`HashOutput::to_canonical_repr`].
     ///
     /// e.g. It could be a field element in poseidon implementation.
-    fn raw_hash(
-        kind: u64,
-        le_bytes: [[u8; HASH_SIZE]; 2],
-    ) -> Result<impl HashOutput, Self::Error>;
+    fn raw_hash(kind: u64, le_bytes: [[u8; HASH_SIZE]; 2]) -> Result<impl HashOutput, Self::Error>;
 
     /// Hash two [`ZkHash`] with a domain.
     fn hash(kind: u64, inputs: [ZkHash; 2]) -> Result<ZkHash, Self::Error> {
@@ -58,9 +54,11 @@ pub trait HashScheme {
     /// Hash a variable length byte array with maximum length of `ELEMENT_SIZE`.
     fn hash_bytes(v: &[u8]) -> Result<ZkHash, Self::Error>;
 
-
     /// Hash an array of 32 bytes values with a compression bit flag.
-    fn hash_bytes_array(value_bytes: &[[u8; 32]], compression_flags: u32) -> Result<ZkHash, Self::Error> {
+    fn hash_bytes_array(
+        value_bytes: &[[u8; 32]],
+        compression_flags: u32,
+    ) -> Result<ZkHash, Self::Error> {
         assert!(!value_bytes.len() > 1);
         let mut hashes = Vec::with_capacity(value_bytes.len());
         for (i, byte) in value_bytes.iter().enumerate() {

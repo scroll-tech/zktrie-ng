@@ -1,4 +1,4 @@
-use super::{HashOutput, HashScheme, ZkHash, HASH_SIZE, HASH_DOMAIN_ELEMS_BASE};
+use super::{HashOutput, HashScheme, ZkHash, HASH_DOMAIN_ELEMS_BASE, HASH_SIZE};
 use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
 
 /// The length of a Poseidon hash.
@@ -46,10 +46,7 @@ impl HashScheme for Poseidon {
         }
     }
 
-    fn raw_hash(
-        kind: u64,
-        le_bytes: [[u8; HASH_SIZE]; 2],
-    ) -> Result<impl HashOutput, Self::Error> {
+    fn raw_hash(kind: u64, le_bytes: [[u8; HASH_SIZE]; 2]) -> Result<impl HashOutput, Self::Error> {
         let a = Fr::from_repr_vartime(le_bytes[0]).ok_or(PoseidonError::InvalidFieldElement)?;
         let b = Fr::from_repr_vartime(le_bytes[1]).ok_or(PoseidonError::InvalidFieldElement)?;
         let domain = Fr::from(kind);

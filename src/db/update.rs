@@ -39,7 +39,11 @@ impl<WriteDb: KVDatabase, CacheDb: KVDatabase> KVDatabase for UpdateDb<WriteDb, 
         if let Some(v) = self.write.get(k).map_err(UpdateDbError::WriteDb)? {
             return Ok(Some(UpdateDbValue::WriteDb(v)));
         }
-        Ok(self.cache.get(k).map_err(UpdateDbError::CacheDb)?.map(|v| UpdateDbValue::CacheDb(v)))
+        Ok(self
+            .cache
+            .get(k)
+            .map_err(UpdateDbError::CacheDb)?
+            .map(UpdateDbValue::CacheDb))
     }
 }
 

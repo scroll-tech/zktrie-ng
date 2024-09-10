@@ -1,6 +1,6 @@
 use crate::{
     db::{HashMapDb, KVDatabase},
-    hash::{HashScheme, ZkHash}
+    hash::{HashScheme, ZkHash},
 };
 
 /// A cache db that stores the hash of a key.
@@ -40,19 +40,24 @@ impl<H: HashScheme, Db: KVDatabase> KeyCacheDb<H, Db> {
         if let Some(hash) = self.inner.get(key).map_err(KeyCacheError::DbError)? {
             let hash = hash.as_ref();
             let hash: &[u8; 32] = hash.try_into().map_err(|_| KeyCacheError::InvalidHash)?;
-            return Ok(Some(ZkHash::from(*hash)))
+            return Ok(Some(ZkHash::from(*hash)));
         };
         Ok(None)
     }
 
     /// Get the hash of a key from the cache,
     /// or compute it and store it in the cache if it is not present.
-    pub fn get_or_compute_if_absent(&mut self, key: &[u8]) -> Result<ZkHash, KeyCacheError<H::Error, Db::Error>> {
+    pub fn get_or_compute_if_absent(
+        &mut self,
+        key: &[u8],
+    ) -> Result<ZkHash, KeyCacheError<H::Error, Db::Error>> {
         if let Some(hash) = self.get(key)? {
             return Ok(hash);
         }
         let hash = H::hash_bytes(key).map_err(KeyCacheError::HashError)?;
-        self.inner.put(key, hash.as_slice()).map_err(KeyCacheError::DbError)?;
+        self.inner
+            .put(key, hash.as_slice())
+            .map_err(KeyCacheError::DbError)?;
         Ok(hash)
     }
 
@@ -61,8 +66,14 @@ impl<H: HashScheme, Db: KVDatabase> KeyCacheDb<H, Db> {
     /// # Safety
     ///
     /// This function is unsafe because it does not check the validity of the hash.
-    pub unsafe fn put_unchecked(&mut self, key: &[u8], hash: ZkHash) -> Result<(), KeyCacheError<H::Error, Db::Error>> {
-        self.inner.put(key, hash.as_ref()).map_err(KeyCacheError::DbError)?;
+    pub unsafe fn put_unchecked(
+        &mut self,
+        key: &[u8],
+        hash: ZkHash,
+    ) -> Result<(), KeyCacheError<H::Error, Db::Error>> {
+        self.inner
+            .put(key, hash.as_ref())
+            .map_err(KeyCacheError::DbError)?;
         Ok(())
     }
 }

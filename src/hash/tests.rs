@@ -1,8 +1,8 @@
+use crate::hash::{HashOutput, HashScheme, Poseidon};
 use poseidon_bn254::{hash_with_domain, Field, Fr, PrimeField};
 use rand::{random, thread_rng};
-use zktrie::{HashField};
+use zktrie::HashField;
 use zktrie_rust::hash::Hash as _;
-use crate::hash::{HashScheme, Poseidon, HashOutput};
 
 #[ctor::ctor]
 fn set_hash_scheme() {
