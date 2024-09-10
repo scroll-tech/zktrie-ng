@@ -1,6 +1,9 @@
 use super::{HashOutput, HashScheme, ZkHash, HASH_DOMAIN_ELEMS_BASE, HASH_SIZE};
 use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
 
+#[cfg(test)]
+mod tests;
+
 /// The length of a Poseidon hash.
 pub const POSEIDON_HASH_LENGTH: usize = 32;
 
@@ -15,8 +18,8 @@ pub struct Poseidon;
 pub enum PoseidonError {
     #[error("input is invalid as a field element")]
     InvalidFieldElement,
-    #[error("hash_bytes can only hash up to {} bytes", HASH_SIZE)]
-    InvalidByteLength,
+    #[error("hash_bytes can only hash up to {} bytes, but got {0} bytes", HASH_SIZE)]
+    InvalidByteLength(usize),
 }
 
 impl HashOutput for Fr {
@@ -26,6 +29,13 @@ impl HashOutput for Fr {
         bytes.reverse();
         ZkHash::from(bytes)
     }
+
+    #[inline]
+    fn from_canonical_repr(repr: ZkHash) -> Option<Self> {
+        let mut bytes: [u8; HASH_SIZE] = repr.into();
+        bytes.reverse();
+        Fr::from_repr_vartime(bytes)
+    }
 }
 
 impl HashScheme for Poseidon {
@@ -33,14 +43,15 @@ impl HashScheme for Poseidon {
 
     fn new_hash_try_from_bytes(bytes: &[u8]) -> Result<ZkHash, Self::Error> {
         if bytes.len() > HASH_SIZE {
-            Err(PoseidonError::InvalidByteLength)
+            Err(PoseidonError::InvalidByteLength(bytes.len()))
         } else {
             let padding = HASH_SIZE - bytes.len();
             let mut h = [0u8; HASH_SIZE];
             h[padding..].copy_from_slice(bytes);
-            #[cfg(debug_assertions)]
-            if Fr::from_repr_vartime(h).is_none() {
-                return Err(PoseidonError::InvalidFieldElement);
+            {
+                if Fr::from_canonical_repr(h.into()).is_none() {
+                    return Err(PoseidonError::InvalidFieldElement);
+                }
             }
             Ok(ZkHash::from(h))
         }
@@ -54,8 +65,8 @@ impl HashScheme for Poseidon {
     }
 
     fn hash_bytes(v: &[u8]) -> Result<ZkHash, Self::Error> {
-        if v.len() >= HASH_SIZE {
-            return Err(PoseidonError::InvalidByteLength);
+        if v.len() > HASH_SIZE {
+            return Err(PoseidonError::InvalidByteLength(v.len()));
         }
         const HALF_LEN: usize = HASH_SIZE / 2;
 

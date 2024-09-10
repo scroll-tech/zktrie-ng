@@ -1,30 +1,33 @@
 //! Traits, helpers, and type definitions for hashing.
+
 use alloy_primitives::FixedBytes;
 
 mod poseidon;
 pub use poseidon::*;
 
-#[cfg(test)]
-mod tests;
 
 /// The size of an element in the hash scheme.
 pub const HASH_SIZE: usize = 32;
 
 const HASH_DOMAIN_ELEMS_BASE: u64 = 256;
 
-/// A 32-byte hash.
+/// A 32-byte big endian hash.
 pub type ZkHash = FixedBytes<HASH_SIZE>;
 
 /// The trait for hashing output.
+#[must_use]
 pub trait HashOutput: Copy + Clone + Sized {
     /// Convert the output into 32-byte big-endian array.
     fn as_canonical_repr(&self) -> ZkHash;
+
+    /// Convert the 32-byte big-endian array into the output.
+    fn from_canonical_repr(repr: ZkHash) -> Option<Self>;
 }
 
 /// HashScheme is a trait that defines how to hash two 32-byte arrays with a domain.
 pub trait HashScheme {
     /// The error type for hashing.
-    type Error;
+    type Error: std::error::Error;
 
     /// Try to convert a byte array to a [`ZkHash`].
     fn new_hash_try_from_bytes(bytes: &[u8]) -> Result<ZkHash, Self::Error>;
@@ -55,31 +58,36 @@ pub trait HashScheme {
     fn hash_bytes(v: &[u8]) -> Result<ZkHash, Self::Error>;
 
     /// Hash an array of 32 bytes values with a compression bit flag.
+    ///
+    /// The first 24 values can be compressed (consider as hash).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value_bytes` is empty.
     fn hash_bytes_array(
         value_bytes: &[[u8; 32]],
-        compression_flags: u32,
+        compression_flag: u32,
     ) -> Result<ZkHash, Self::Error> {
-        assert!(!value_bytes.len() > 1);
+        assert!(!value_bytes.is_empty());
         let mut hashes = Vec::with_capacity(value_bytes.len());
-        for (i, byte) in value_bytes.iter().enumerate() {
-            if compression_flags & (1 << i) != 0 {
-                hashes.push(Self::hash_bytes(byte.as_slice())?);
+        for (i, bytes) in value_bytes.iter().enumerate() {
+            if i <= 24 && compression_flag & (1 << i) != 0 {
+                hashes.push(Self::hash_bytes(bytes.as_slice())?);
             } else {
-                hashes.push(Self::new_hash_try_from_bytes(byte)?);
+                hashes.push(Self::new_hash_try_from_bytes(bytes)?);
             }
         }
 
         let domain = value_bytes.len() as u64 * HASH_DOMAIN_ELEMS_BASE;
         while hashes.len() > 1 {
-            let mut out = Vec::new();
-            for pair in hashes.chunks(2) {
-                out.push(if pair.len() == 2 {
-                    Self::hash(domain, [pair[0], pair[1]])?
-                } else {
-                    pair[0]
-                });
+            let length = hashes.len();
+            for i in 0..length / 2 {
+                hashes[i] = Self::hash(domain, [hashes[2 * i], hashes[2 * i + 1]])?;
             }
-            hashes = out;
+            if length % 2 != 0 {
+                hashes[length / 2] = hashes.pop().unwrap();
+            }
+            hashes.truncate(length / 2 + length % 2);
         }
 
         Ok(hashes[0])
