@@ -18,7 +18,7 @@ pub enum UpdateDbError<WriteDbErr, CacheDbErr> {
     CacheDb(CacheDbErr),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum UpdateDbValue<W, C> {
     WriteDb(W),
     CacheDb(C),

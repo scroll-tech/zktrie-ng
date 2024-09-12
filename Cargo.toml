@@ -12,15 +12,17 @@ alloy-primitives = "0.8.0"
 hashbrown = { version = "0.14", optional = true }
 num-derive = "0.4"
 num-traits = "0.2"
+once_cell = "1.19"
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master" }
 sled = { version = "0.34", optional = true }
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1.0"
+tracing = "0.1"
 
 [dev-dependencies]
 ctor = "0.2"
 rand = "0.8"
-zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features= ["rs_zktrie"] }
+zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features = ["rs_zktrie"] }
 zktrie_rust = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main" }
 
 [features]

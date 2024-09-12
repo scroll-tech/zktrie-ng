@@ -1,10 +1,9 @@
 //! Traits, helpers, and type definitions for hashing.
 
 use alloy_primitives::FixedBytes;
+use std::fmt::Debug;
 
-mod poseidon;
-pub use poseidon::*;
-
+pub mod poseidon;
 
 /// The size of an element in the hash scheme.
 pub const HASH_SIZE: usize = 32;
@@ -25,7 +24,7 @@ pub trait HashOutput: Copy + Clone + Sized {
 }
 
 /// HashScheme is a trait that defines how to hash two 32-byte arrays with a domain.
-pub trait HashScheme {
+pub trait HashScheme: Debug + Copy + Clone + Sized {
     /// The error type for hashing.
     type Error: std::error::Error;
 

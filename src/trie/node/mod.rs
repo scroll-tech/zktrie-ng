@@ -1,6 +1,8 @@
 use crate::hash::{HashScheme, ZkHash, HASH_SIZE};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use once_cell::sync::OnceCell;
+use std::sync::Arc;
 use strum::Display;
 use NodeType::*;
 
@@ -41,6 +43,16 @@ impl NodeType {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum LazyNodeHash {
+    Hash(ZkHash),
+    /// This is a 'pointer' to an index in the `dirty_branch_nodes` array.
+    LazyBranch {
+        index: usize,
+        resolved: Arc<OnceCell<ZkHash>>,
+    },
+}
+
 /// Leaf node can hold key-values.
 ///
 /// The `value_hash` is computed by [`HashScheme::hash_bytes_array`].
@@ -53,7 +65,7 @@ pub struct LeafNode {
     /// Store at most 256 `[u8; 32]` values as fields (represented by big endian integer),
     /// and the first 24 can be compressed (each 32 bytes consider as 2 fields),
     /// in hashing the compressed elements would be calculated first
-    value_preimages: Vec<[u8; 32]>,
+    value_preimages: Arc<[[u8; 32]]>,
     /// use each bit for indicating the compressed flag for the first 24 fields
     compress_flags: u32,
     /// The hash of `value_preimages`.
@@ -66,9 +78,9 @@ pub struct BranchNode {
     /// Type of this node.
     node_type: NodeType,
     /// Left child hash, defaults to be zero.
-    child_left: ZkHash,
+    child_left: LazyNodeHash,
     /// Right child hash, defaults to be zero.
-    child_right: ZkHash,
+    child_right: LazyNodeHash,
 }
 
 /// Three kinds of nodes in the merkle tree.
@@ -81,13 +93,15 @@ pub enum NodeKind {
 
 /// Node struct represents a node in the merkle tree.
 ///
+/// It's read-only and immutable, and the data is stored in `NodeKind`. Clone is cheap.
+///
 /// The `node_hash` is computed by [`HashScheme::hash`]:
 /// - For `Leaf` node, it's computed by the hash of `Leaf` type and `[node_key, value_hash]`.
 /// - For `Branch` node, it's computed by the hash of `Branch` type and `[child_left, child_right]`.
 #[derive(Clone, Debug)]
 pub struct Node<H> {
     /// nodeHash is the cache of the hash of the node to avoid recalculating
-    node_hash: ZkHash,
+    pub(crate) node_hash: Arc<OnceCell<ZkHash>>,
     /// The data of the node.
     data: NodeKind,
     _hash_scheme: std::marker::PhantomData<H>,

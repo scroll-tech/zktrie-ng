@@ -1,4 +1,5 @@
 mod btree_map;
+
 pub use btree_map::BTreeMapDb;
 
 mod hash_map;
@@ -16,7 +17,7 @@ pub use sled::SledDb;
 /// This trait is used to abstract over different key-value stores,
 /// works likes a `HashMap<Box<[u8]>, Box<[u8]>>`.
 pub trait KVDatabase: Clone {
-    type Error;
+    type Error: std::error::Error;
 
     /// Insert a key-value pair into the database.
     /// Returns the previous value associated with the key, if any.

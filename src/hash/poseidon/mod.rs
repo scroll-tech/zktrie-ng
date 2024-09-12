@@ -2,12 +2,23 @@ use super::{HashOutput, HashScheme, ZkHash, HASH_DOMAIN_ELEMS_BASE, HASH_SIZE};
 use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 /// The length of a Poseidon hash.
 pub const POSEIDON_HASH_LENGTH: usize = 32;
 
 const HASH_DOMAIN_BYTE32: u64 = 2 * HASH_DOMAIN_ELEMS_BASE;
+
+// NODE_KEY_VALID_BYTES is the number of least significant bytes in the node key
+// that are considered valid to addressing the leaf node, and thus limits the
+// maximum trie depth to NODE_KEY_VALID_BYTES * 8.
+// We need to truncate the node key because the key is the output of Poseidon
+// hash and the key space doesn't fully occupy the range of power of two. It can
+// lead to an ambiguous bit representation of the key in the finite field
+// causing a soundness issue in the zk circuit.
+pub const NODE_KEY_VALID_BYTES: u32 = 31;
+
+pub const TRIE_MAX_LEVELS: usize = (NODE_KEY_VALID_BYTES * 8) as usize;
 
 /// The Poseidon hash scheme.
 #[derive(Default, Copy, Clone, Debug)]
@@ -18,7 +29,10 @@ pub struct Poseidon;
 pub enum PoseidonError {
     #[error("input is invalid as a field element")]
     InvalidFieldElement,
-    #[error("hash_bytes can only hash up to {} bytes, but got {0} bytes", HASH_SIZE)]
+    #[error(
+        "hash_bytes can only hash up to {} bytes, but got {0} bytes",
+        HASH_SIZE
+    )]
     InvalidByteLength(usize),
 }
 
