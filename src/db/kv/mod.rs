@@ -18,7 +18,7 @@ pub use sled::SledDb;
 /// works likes a `HashMap<Box<[u8]>, Box<[u8]>>`.
 pub trait KVDatabase: Clone {
     /// Associated error type.
-    type Error: std::error::Error;
+    type Error: std::error::Error + 'static;
 
     /// Insert a key-value pair into the database.
     /// Returns the previous value associated with the key, if any.

@@ -5,6 +5,8 @@ use std::fmt::Debug;
 
 pub mod poseidon;
 
+pub mod key_hasher;
+
 /// The size of an element in the hash scheme.
 pub const HASH_SIZE: usize = 32;
 

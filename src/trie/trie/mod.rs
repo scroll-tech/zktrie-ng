@@ -1,6 +1,10 @@
 use crate::{
-    db::{HashMapDb, KVDatabase, KeyCacheDb, KeyCacheError},
-    hash::{poseidon::Poseidon, HashScheme, ZkHash, HASH_SIZE},
+    db::{HashMapDb, KVDatabase},
+    hash::{
+        key_hasher::{KeyHasher, KeyHasherError, NoCacheHasher},
+        poseidon::Poseidon,
+        HashScheme, ZkHash, HASH_SIZE,
+    },
     trie::{LazyNodeHash, Node, NodeType, ParseNodeError},
     HashMap,
 };
@@ -10,9 +14,9 @@ mod imp;
 mod tests;
 
 /// A zkTrie implementation.
-pub struct ZkTrie<const MAX_LEVEL: usize, H = Poseidon, Db = HashMapDb, CacheDb = HashMapDb> {
+pub struct ZkTrie<const MAX_LEVEL: usize, H = Poseidon, Db = HashMapDb, K = NoCacheHasher> {
     db: Db,
-    key_cache: KeyCacheDb<H, CacheDb>,
+    key_hasher: K,
 
     root: LazyNodeHash,
     dirty_branch_nodes: Vec<Node<H>>,
@@ -23,16 +27,16 @@ pub struct ZkTrie<const MAX_LEVEL: usize, H = Poseidon, Db = HashMapDb, CacheDb 
 
 /// Errors that can occur when using a zkTrie.
 #[derive(Debug, thiserror::Error)]
-pub enum ZkTrieError<HashErr, DbErr, CacheDbErr> {
+pub enum ZkTrieError<HashErr, DbErr> {
     /// Error when hashing
     #[error(transparent)]
     Hash(HashErr),
     /// Error when accessing the database
     #[error("Database error: {0}")]
     Db(DbErr),
-    /// Error when accessing the cache database
+    /// Error when hashing the key
     #[error("Key cache error: {0}")]
-    KeyCache(#[from] KeyCacheError<HashErr, CacheDbErr>),
+    KeyHasher(#[from] KeyHasherError<HashErr>),
     /// Error when parsing a node
     #[error("Invalid node bytes: {0}")]
     InvalidNodeBytes(#[from] ParseNodeError<HashErr>),

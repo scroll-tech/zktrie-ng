@@ -3,23 +3,17 @@ use super::*;
 use crate::trie::{DecodeValueBytes, EncodeValueBytes, LazyBranchHash};
 use std::fmt::{Debug, Formatter};
 
-type Result<T, H, DB, CacheDb> = std::result::Result<
-    T,
-    ZkTrieError<
-        <H as HashScheme>::Error,
-        <DB as KVDatabase>::Error,
-        <CacheDb as KVDatabase>::Error,
-    >,
->;
+type Result<T, H, DB> =
+    std::result::Result<T, ZkTrieError<<H as HashScheme>::Error, <DB as KVDatabase>::Error>>;
 
 impl<const MAX_LEVEL: usize, H: HashScheme> Default for ZkTrie<MAX_LEVEL, H> {
     fn default() -> Self {
-        Self::new(HashMapDb::new(), HashMapDb::new())
+        Self::new(HashMapDb::new(), NoCacheHasher)
     }
 }
 
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase> Debug
-    for ZkTrie<MAX_LEVEL, H, Db, CacheDb>
+impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug
+    for ZkTrie<MAX_LEVEL, H, Db, K>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZkTrie")
@@ -30,21 +24,21 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
             .finish()
     }
 }
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
-    ZkTrie<MAX_LEVEL, H, Db, CacheDb>
+impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
+    ZkTrie<MAX_LEVEL, H, Db, K>
 {
     /// Create a new zkTrie
     #[inline(always)]
-    pub fn new(db: Db, cache_db: CacheDb) -> Self {
-        Self::new_with_root(db, cache_db, ZkHash::default()).expect("infallible")
+    pub fn new(db: Db, key_hasher: K) -> Self {
+        Self::new_with_root(db, key_hasher, ZkHash::default()).expect("infallible")
     }
 
     /// Create a new zkTrie with a given root hash
     #[inline]
-    pub fn new_with_root(db: Db, cache_db: CacheDb, root: ZkHash) -> Result<Self, H, Db, CacheDb> {
+    pub fn new_with_root(db: Db, key_hasher: K, root: ZkHash) -> Result<Self, H, Db> {
         let this = Self {
             db,
-            key_cache: KeyCacheDb::new(cache_db),
+            key_hasher,
             root: root.into(),
             dirty_branch_nodes: Vec::new(),
             dirty_leafs: HashMap::new(),
@@ -69,11 +63,8 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
     }
 
     /// Get a value from the trie, which can be decoded from bytes
-    pub fn get<const LEN: usize, T: DecodeValueBytes<LEN>>(
-        &mut self,
-        key: &[u8],
-    ) -> Result<T, H, Db, CacheDb> {
-        let node_key = self.key_cache.get_or_compute_if_absent(key)?;
+    pub fn get<const LEN: usize, T: DecodeValueBytes<LEN>>(&self, key: &[u8]) -> Result<T, H, Db> {
+        let node_key = self.key_hasher.hash(key)?;
         let node = self.get_node(node_key)?;
         match node.node_type() {
             NodeType::Empty => Err(ZkTrieError::NodeNotFound),
@@ -97,11 +88,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
 
     /// Update the trie with a new key-value pair, which value can be encoded to bytes
     #[inline(always)]
-    pub fn update<T: EncodeValueBytes>(
-        &mut self,
-        key: &[u8],
-        value: T,
-    ) -> Result<(), H, Db, CacheDb> {
+    pub fn update<T: EncodeValueBytes>(&mut self, key: &[u8], value: T) -> Result<(), H, Db> {
         let (values, compression_flags) = value.encode_values_bytes();
         self.raw_update(key, values, compression_flags)
     }
@@ -112,16 +99,19 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
         key: &[u8],
         value_preimages: Vec<[u8; 32]>,
         compression_flags: u32,
-    ) -> Result<(), H, Db, CacheDb> {
-        let node_key = self.key_cache.get_or_compute_if_absent(key)?;
+    ) -> Result<(), H, Db> {
+        let node_key = self.key_hasher.hash(key)?;
         let new_leaf = Node::new_leaf(node_key, value_preimages, compression_flags, None)
             .map_err(ZkTrieError::Hash)?;
         self.root = self.add_leaf(new_leaf, self.root.clone(), 0)?.0;
         Ok(())
     }
 
+    /// Delete a key from the trie
+    pub fn delete(&mut self, key: &[u8]) -> Result<(), H, Db> {}
+
     /// Commit changes of the trie to the database
-    pub fn commit(&mut self) -> Result<(), H, Db, CacheDb> {
+    pub fn commit(&mut self) -> Result<(), H, Db> {
         if !self.is_dirty() {
             return Ok(());
         }
@@ -137,7 +127,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
     }
 
     /// Get a node from the trie
-    pub fn get_node(&self, node_hash: impl Into<LazyNodeHash>) -> Result<Node<H>, H, Db, CacheDb> {
+    pub fn get_node(&self, node_hash: impl Into<LazyNodeHash>) -> Result<Node<H>, H, Db> {
         let node_hash = node_hash.into();
         if node_hash.is_zero() {
             return Ok(Node::<H>::empty());
@@ -176,7 +166,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
         leaf: Node<H>,
         curr_node_hash: LazyNodeHash,
         level: usize,
-    ) -> Result<(LazyNodeHash, bool), H, Db, CacheDb> {
+    ) -> Result<(LazyNodeHash, bool), H, Db> {
         if level >= MAX_LEVEL {
             return Err(ZkTrieError::MaxLevelReached);
         }
@@ -270,7 +260,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
         old_leaf: Node<H>,
         new_leaf: Node<H>,
         level: usize,
-    ) -> Result<LazyNodeHash, H, Db, CacheDb> {
+    ) -> Result<LazyNodeHash, H, Db> {
         if level >= MAX_LEVEL - 1 {
             return Err(ZkTrieError::MaxLevelReached);
         }
@@ -319,7 +309,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
         Ok(lazy_hash)
     }
 
-    fn resolve_commit(&mut self, node_hash: LazyNodeHash) -> Result<ZkHash, H, Db, CacheDb> {
+    fn resolve_commit(&mut self, node_hash: LazyNodeHash) -> Result<ZkHash, H, Db> {
         match node_hash {
             LazyNodeHash::Hash(node_hash) => {
                 if let Some(node) = self.dirty_leafs.remove(&node_hash) {

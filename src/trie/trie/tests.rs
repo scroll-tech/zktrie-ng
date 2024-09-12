@@ -15,7 +15,7 @@ fn new_trie_old() -> TrieOld {
 fn test_simple() {
     let mut old_trie = new_trie_old();
 
-    let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::new(HashMapDb::new(), HashMapDb::new());
+    let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::default();
 
     let k = [1u8; 32];
     let v = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
@@ -40,7 +40,7 @@ fn test_randoms() {
 fn test_random() {
     let mut old_trie = new_trie_old();
 
-    let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::new(HashMapDb::new(), HashMapDb::new());
+    let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::default();
 
     for _ in 0..50 {
         let k: [u8; 32] = random();
@@ -92,8 +92,8 @@ fn print_old_trie(trie: &TrieOld, hash: AsHash<HashField>, level: usize) {
     };
 }
 
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
-    ZkTrie<MAX_LEVEL, H, Db, CacheDb>
+impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
+    ZkTrie<MAX_LEVEL, H, Db, K>
 {
     fn print_node(
         &self,
@@ -137,8 +137,8 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
     }
 }
 
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase> Display
-    for ZkTrie<MAX_LEVEL, H, Db, CacheDb>
+impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Display
+    for ZkTrie<MAX_LEVEL, H, Db, K>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.print_node(self.root.clone(), 0, f)
