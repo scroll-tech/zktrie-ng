@@ -35,7 +35,7 @@ pub enum ZkTrieError<HashErr, DbErr> {
     #[error("Database error: {0}")]
     Db(DbErr),
     /// Error when hashing the key
-    #[error("Key cache error: {0}")]
+    #[error("Key hasher error: {0}")]
     KeyHasher(#[from] KeyHasherError<HashErr>),
     /// Error when parsing a node
     #[error("Invalid node bytes: {0}")]

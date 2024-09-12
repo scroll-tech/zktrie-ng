@@ -1,6 +1,7 @@
 use super::*;
 use crate::hash::poseidon::{tests::gen_random_bytes, TRIE_MAX_LEVELS};
 use rand::random;
+use rand::seq::SliceRandom;
 use std::fmt::Display;
 use zktrie::HashField;
 use zktrie_rust::{db::SimpleDb, hash::AsHash, types::TrieHashScheme};
@@ -42,7 +43,9 @@ fn test_random() {
 
     let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::default();
 
-    for _ in 0..50 {
+    let mut keys = Vec::new();
+
+    for _ in 0..10 {
         let k: [u8; 32] = random();
 
         let (values, compression_flag) = gen_random_bytes();
@@ -52,11 +55,29 @@ fn test_random() {
             .unwrap();
 
         trie.raw_update(&k, values, compression_flag).unwrap();
+
+        keys.push((k, old_key));
     }
 
     old_trie.prepare_root().unwrap();
-
+    old_trie.commit().unwrap();
     trie.commit().unwrap();
+
+    assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
+
+    for (k, old_key) in keys.choose_multiple(&mut rand::thread_rng(), 10) {
+        old_trie.try_delete(old_key).unwrap();
+        trie.delete(k).unwrap();
+    }
+
+    old_trie.prepare_root().unwrap();
+    old_trie.commit().unwrap();
+    trie.commit().unwrap();
+
+    // println!("Old:");
+    // print_old_trie(&old_trie, old_trie.root().clone(), 0);
+    // println!("New:");
+    // println!("{}", trie);
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 }

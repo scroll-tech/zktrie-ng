@@ -110,7 +110,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
     /// Delete a key from the trie
     pub fn delete(&mut self, key: &[u8]) -> Result<(), H, Db> {
         let node_key = self.key_hasher.hash(key)?;
-        self.delete_node(self.root.clone(), node_key, 0)?;
+        self.root = self.delete_node(self.root.clone(), node_key, 0)?.0;
         Ok(())
     }
 
@@ -366,10 +366,9 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
                         is_sibling_terminal,
                     )
                 };
-
                 let new_node_type = if is_left_terminal && is_right_terminal {
-                    let left_is_empty = left_child.is_zero();
-                    let right_is_empty = right_child.is_zero();
+                    let left_is_empty = left_child.unwrap_ref().is_zero();
+                    let right_is_empty = right_child.unwrap_ref().is_zero();
 
                     // If both children are terminal and one of them is empty, prune the root node
                     // and return the non-empty child
