@@ -33,6 +33,11 @@ impl KVDatabase for SledDb {
         self.db.get(k)
     }
 
+    fn remove(&mut self, k: &[u8]) -> Result<(), Self::Error> {
+        self.db.remove(k)?;
+        Ok(())
+    }
+
     fn extend<T: IntoIterator<Item = (Box<[u8]>, Box<[u8]>)>>(
         &mut self,
         other: T,

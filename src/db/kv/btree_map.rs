@@ -34,7 +34,11 @@ impl KVDatabase for BTreeMapDb {
     }
 
     fn get(&self, k: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error> {
-        Ok(self.db.get(k).map(|v| v.as_ref()))
+        Ok(self.db.get(k))
+    }
+    fn remove(&mut self, k: &[u8]) -> Result<(), Self::Error> {
+        self.db.remove(k);
+        Ok(())
     }
 
     fn extend<T: IntoIterator<Item = (Box<[u8]>, Box<[u8]>)>>(

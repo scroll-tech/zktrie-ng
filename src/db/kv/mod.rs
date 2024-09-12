@@ -38,6 +38,22 @@ pub trait KVDatabase: Clone {
     /// Returns `Ok(None)` if the key is not present.
     fn get(&self, k: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error>;
 
+    /// Best-effort removal of a key-value pair from the database, used for garbage collection.
+    ///
+    /// For implementations that do not support removal, this method should not be overridden.
+    ///
+    /// If `Ok(())` returns, the removal may be:
+    /// - removed (the key was present and removed or the key was not present),
+    /// - unsupported (the database does not support removal).
+    /// - planned, but not yet executed (i.e. the database is busy and the operation is queued).
+    ///
+    /// You shall never rely on the return value to determine if the key was present or not.
+    ///
+    /// If `Err(e)` returns, it can only be: the database supports removal but the operation fails.
+    fn remove(&mut self, _k: &[u8]) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     /// Extend the database with the key-value pairs from the iterator.
     fn extend<T: IntoIterator<Item = (Box<[u8]>, Box<[u8]>)>>(
         &mut self,
