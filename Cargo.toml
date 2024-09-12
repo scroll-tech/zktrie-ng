@@ -23,6 +23,14 @@ strum = { version = "0.26", features = ["derive"] }
 thiserror = "1.0"
 tracing = "0.1"
 
+[dependencies.revm-primitives]
+git = "https://github.com/scroll-tech/revm"
+branch = "scroll-evm-executor/v42"
+default-features = false
+features = ["scroll", "scroll-poseidon-codehash"]
+optional = true
+
+
 [dev-dependencies]
 ctor = "0.2"
 rand = "0.8"
@@ -37,6 +45,8 @@ hashbrown = ["dep:hashbrown"]
 bn254 = ["poseidon-bn254/bn254"]
 halo2curves_v1 = ["poseidon-bn254/halo2curves_v1"]
 halo2curves_v3 = ["poseidon-bn254/halo2curves_v3"]
+
+scroll = ["dep:revm-primitives"]
 
 sled = ["dep:sled"]
 sled_compression = ["sled", "sled/zstd"]

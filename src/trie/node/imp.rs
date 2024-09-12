@@ -20,7 +20,7 @@ impl LazyNodeHash {
     pub fn is_zero(&self) -> bool {
         match self {
             LazyNodeHash::Hash(hash) => hash.is_zero(),
-            LazyNodeHash::LazyBranch(LazyBranch { resolved, .. }) => {
+            LazyNodeHash::LazyBranch(LazyBranchHash { resolved, .. }) => {
                 resolved.get().map_or(false, ZkHash::is_zero)
             }
         }
@@ -34,7 +34,7 @@ impl LazyNodeHash {
     pub fn unwrap_ref(&self) -> &ZkHash {
         match self {
             LazyNodeHash::Hash(hash) => hash,
-            LazyNodeHash::LazyBranch(LazyBranch { resolved, .. }) => resolved.get().unwrap(),
+            LazyNodeHash::LazyBranch(LazyBranchHash { resolved, .. }) => resolved.get().unwrap(),
         }
     }
 }
@@ -56,6 +56,12 @@ impl LeafNode {
     #[inline]
     pub fn value_preimages(&self) -> &[[u8; 32]] {
         &self.value_preimages
+    }
+
+    /// Get the value preimages stored in a leaf node.
+    #[inline]
+    pub fn into_value_preimages(self) -> Arc<[[u8; 32]]> {
+        self.value_preimages
     }
 
     /// Get the compress flags stored in a leaf node.

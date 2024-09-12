@@ -45,9 +45,9 @@ impl NodeType {
 
 /// A reference to another branch node that the node hash may not be calculated yet.
 #[derive(Clone, Debug)]
-pub(crate) struct LazyBranchHash {
-    index: usize,
-    resolved: Arc<OnceCell<ZkHash>>,
+pub struct LazyBranchHash {
+    pub(crate) index: usize,
+    pub(crate) resolved: Arc<OnceCell<ZkHash>>,
 }
 
 /// A lazy hash wrapper may be resolved later.

@@ -1,4 +1,6 @@
 use super::*;
+
+use crate::trie::{DecodeValueBytes, EncodeValueBytes, LazyBranchHash};
 use std::fmt::{Debug, Formatter};
 
 type Result<T, H, DB, CacheDb> = std::result::Result<
@@ -54,6 +56,85 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
         Ok(this)
     }
 
+    /// Check if the trie is dirty
+    #[inline(always)]
+    pub fn is_dirty(&self) -> bool {
+        !self.dirty_branch_nodes.is_empty() || !self.dirty_leafs.is_empty()
+    }
+
+    /// Get the root hash of the trie, may be unresolved if the trie is dirty
+    #[inline(always)]
+    pub fn root(&self) -> &LazyNodeHash {
+        &self.root
+    }
+
+    /// Get a value from the trie, which can be decoded from bytes
+    pub fn get<const LEN: usize, T: DecodeValueBytes<LEN>>(
+        &mut self,
+        key: &[u8],
+    ) -> Result<T, H, Db, CacheDb> {
+        let node_key = self.key_cache.get_or_compute_if_absent(key)?;
+        let node = self.get_node(node_key)?;
+        match node.node_type() {
+            NodeType::Empty => Err(ZkTrieError::NodeNotFound),
+            NodeType::Leaf => {
+                let leaf = node.into_leaf().unwrap();
+                let values = leaf.into_value_preimages();
+                let values: &[[u8; 32]; LEN] =
+                    values
+                        .as_ref()
+                        .try_into()
+                        .map_err(|_| ZkTrieError::UnexpectValueLength {
+                            expected: LEN,
+                            actual: values.len(),
+                        })?;
+
+                Ok(T::decode_values_bytes(values))
+            }
+            _ => Err(ZkTrieError::ExpectLeafNode),
+        }
+    }
+
+    /// Update the trie with a new key-value pair, which value can be encoded to bytes
+    #[inline(always)]
+    pub fn update<T: EncodeValueBytes>(
+        &mut self,
+        key: &[u8],
+        value: T,
+    ) -> Result<(), H, Db, CacheDb> {
+        self.raw_update(key, value.encode_values_bytes(), value.compression_flags())
+    }
+
+    /// Update the trie with a new key-values pair
+    pub fn raw_update(
+        &mut self,
+        key: &[u8],
+        value_preimages: Vec<[u8; 32]>,
+        compression_flags: u32,
+    ) -> Result<(), H, Db, CacheDb> {
+        let node_key = self.key_cache.get_or_compute_if_absent(key)?;
+        let new_leaf = Node::new_leaf(node_key, value_preimages, compression_flags, None)
+            .map_err(ZkTrieError::Hash)?;
+        self.root = self.add_leaf(new_leaf, self.root.clone(), 0)?.0;
+        Ok(())
+    }
+
+    /// Commit changes of the trie to the database
+    pub fn commit(&mut self) -> Result<(), H, Db, CacheDb> {
+        if !self.is_dirty() {
+            return Ok(());
+        }
+
+        // resolve all unresolved branch nodes
+        self.root = LazyNodeHash::Hash(self.resolve_commit(self.root.clone())?);
+
+        // clear dirty nodes
+        self.dirty_branch_nodes.clear();
+        self.dirty_leafs.clear();
+
+        Ok(())
+    }
+
     /// Get a node from the trie
     pub fn get_node(&self, node_hash: impl Into<LazyNodeHash>) -> Result<Node<H>, H, Db, CacheDb> {
         let node_hash = node_hash.into();
@@ -83,48 +164,6 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
                 .cloned()
                 .ok_or(ZkTrieError::NodeNotFound),
         }
-    }
-
-    /// Check if the trie is dirty
-    #[inline(always)]
-    pub fn is_dirty(&self) -> bool {
-        !self.dirty_branch_nodes.is_empty() || !self.dirty_leafs.is_empty()
-    }
-
-    /// Get the root hash of the trie, may be unresolved if the trie is dirty
-    #[inline(always)]
-    pub fn root(&self) -> &LazyNodeHash {
-        &self.root
-    }
-
-    /// Update the trie with a new key-values pair
-    pub fn update(
-        &mut self,
-        key: &[u8],
-        value_preimages: Vec<[u8; 32]>,
-        compression_flags: u32,
-    ) -> Result<(), H, Db, CacheDb> {
-        let node_key = self.key_cache.get_or_compute_if_absent(key)?;
-        let new_leaf = Node::new_leaf(node_key, value_preimages, compression_flags, None)
-            .map_err(ZkTrieError::Hash)?;
-        self.root = self.add_leaf(new_leaf, self.root.clone(), 0)?.0;
-        Ok(())
-    }
-
-    /// Commit changes of the trie to the database
-    pub fn commit(&mut self) -> Result<(), H, Db, CacheDb> {
-        if !self.is_dirty() {
-            return Ok(());
-        }
-
-        // resolve all unresolved branch nodes
-        self.root = LazyNodeHash::Hash(self.resolve_commit(self.root.clone())?);
-
-        // clear dirty nodes
-        self.dirty_branch_nodes.clear();
-        self.dirty_leafs.clear();
-
-        Ok(())
     }
 
     /// Recursively adds a new leaf in the MT while updating the path
@@ -208,7 +247,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
                     Node::new_branch(new_node_type, new_node_hash, current_node_right_child)
                 };
 
-                let lazy_hash = LazyNodeHash::LazyBranch(LazyBranch {
+                let lazy_hash = LazyNodeHash::LazyBranch(LazyBranchHash {
                     index: self.dirty_branch_nodes.len(),
                     resolved: new_parent_node.node_hash.clone(),
                 });
@@ -270,7 +309,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
             }
         };
 
-        let lazy_hash = LazyNodeHash::LazyBranch(LazyBranch {
+        let lazy_hash = LazyNodeHash::LazyBranch(LazyBranchHash {
             index: self.dirty_branch_nodes.len(),
             resolved: new_parent.node_hash.clone(),
         });

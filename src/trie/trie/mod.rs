@@ -45,4 +45,15 @@ pub enum ZkTrieError<HashErr, DbErr, CacheDbErr> {
     /// Error when the max level is reached
     #[error("Max level reached")]
     MaxLevelReached,
+    /// Expect a leaf node but got others
+    #[error("Expect a leaf node but got others")]
+    ExpectLeafNode,
+    /// Unexpect value length
+    #[error("Unexpect value length: expected {expected}, actual {actual}")]
+    UnexpectValueLength {
+        /// The expected length
+        expected: usize,
+        /// The actual length
+        actual: usize,
+    },
 }
