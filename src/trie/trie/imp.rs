@@ -102,7 +102,8 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, CacheDb: KVDatabase>
         key: &[u8],
         value: T,
     ) -> Result<(), H, Db, CacheDb> {
-        self.raw_update(key, value.encode_values_bytes(), value.compression_flags())
+        let (values, compression_flags) = value.encode_values_bytes();
+        self.raw_update(key, values, compression_flags)
     }
 
     /// Update the trie with a new key-values pair
