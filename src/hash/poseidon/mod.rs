@@ -1,3 +1,4 @@
+//! Poseidon bn254 hash scheme.
 use super::{HashOutput, HashScheme, ZkHash, HASH_DOMAIN_ELEMS_BASE, HASH_SIZE};
 use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
 
@@ -9,15 +10,16 @@ pub const POSEIDON_HASH_LENGTH: usize = 32;
 
 const HASH_DOMAIN_BYTE32: u64 = 2 * HASH_DOMAIN_ELEMS_BASE;
 
-// NODE_KEY_VALID_BYTES is the number of least significant bytes in the node key
-// that are considered valid to addressing the leaf node, and thus limits the
-// maximum trie depth to NODE_KEY_VALID_BYTES * 8.
-// We need to truncate the node key because the key is the output of Poseidon
-// hash and the key space doesn't fully occupy the range of power of two. It can
-// lead to an ambiguous bit representation of the key in the finite field
-// causing a soundness issue in the zk circuit.
+/// NODE_KEY_VALID_BYTES is the number of least significant bytes in the node key
+/// that are considered valid to addressing the leaf node, and thus limits the
+/// maximum trie depth to NODE_KEY_VALID_BYTES * 8.
+/// We need to truncate the node key because the key is the output of Poseidon
+/// hash and the key space doesn't fully occupy the range of power of two. It can
+/// lead to an ambiguous bit representation of the key in the finite field
+/// causing a soundness issue in the zk circuit.
 pub const NODE_KEY_VALID_BYTES: u32 = 31;
 
+/// The maximum trie depth.
 pub const TRIE_MAX_LEVELS: usize = (NODE_KEY_VALID_BYTES * 8) as usize;
 
 /// The Poseidon hash scheme.
@@ -27,8 +29,10 @@ pub struct Poseidon;
 /// The error type for Poseidon hash.
 #[derive(Copy, Clone, Debug, thiserror::Error)]
 pub enum PoseidonError {
+    /// The input is invalid as a field element.
     #[error("input is invalid as a field element")]
     InvalidFieldElement,
+    /// Try to hash more than `HASH_SIZE` bytes.
     #[error(
         "hash_bytes can only hash up to {} bytes, but got {0} bytes",
         HASH_SIZE

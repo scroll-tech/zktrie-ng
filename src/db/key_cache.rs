@@ -4,7 +4,7 @@ use crate::{
 };
 
 /// A cache db that stores the hash of a key.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KeyCacheDb<H, Db = HashMapDb> {
     inner: Db,
     _hash_scheme: std::marker::PhantomData<H>,
@@ -13,11 +13,14 @@ pub struct KeyCacheDb<H, Db = HashMapDb> {
 /// Error type for KeyCacheDb
 #[derive(Debug, thiserror::Error)]
 pub enum KeyCacheError<HashErr, DbErr> {
+    /// Error when hashing
     #[error(transparent)]
     HashError(HashErr),
+    /// Error when accessing the database
     #[error(transparent)]
     DbError(DbErr),
-    #[error("Invalid hash")]
+    /// Error when the hash read from db is invalid
+    #[error("Invalid hash read from db")]
     InvalidHash,
 }
 

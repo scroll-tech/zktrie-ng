@@ -20,7 +20,7 @@ impl LazyNodeHash {
     pub fn is_zero(&self) -> bool {
         match self {
             LazyNodeHash::Hash(hash) => hash.is_zero(),
-            LazyNodeHash::LazyBranch { resolved, .. } => {
+            LazyNodeHash::LazyBranch(LazyBranch { resolved, .. }) => {
                 resolved.get().map_or(false, ZkHash::is_zero)
             }
         }
@@ -34,7 +34,7 @@ impl LazyNodeHash {
     pub fn unwrap_ref(&self) -> &ZkHash {
         match self {
             LazyNodeHash::Hash(hash) => hash,
-            LazyNodeHash::LazyBranch { resolved, .. } => resolved.get().unwrap(),
+            LazyNodeHash::LazyBranch(LazyBranch { resolved, .. }) => resolved.get().unwrap(),
         }
     }
 }

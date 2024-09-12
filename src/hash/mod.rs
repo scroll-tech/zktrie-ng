@@ -38,7 +38,7 @@ pub trait HashScheme: Debug + Copy + Clone + Sized {
     /// e.g. In poseidon implementation, it's treated as bn254 field element representation.
     ///
     /// The output of this method should be treated as an opaque type that can be converted to
-    /// [`ZkHash`] with [`HashOutput::to_canonical_repr`].
+    /// [`ZkHash`] with [`HashOutput::as_canonical_repr`].
     ///
     /// e.g. It could be a field element in poseidon implementation.
     fn raw_hash(kind: u64, le_bytes: [[u8; HASH_SIZE]; 2]) -> Result<impl HashOutput, Self::Error>;

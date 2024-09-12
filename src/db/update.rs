@@ -3,7 +3,7 @@ use crate::db::{HashMapDb, KVDatabase, SharedDb};
 /// A zk database that can be updated.
 ///
 /// Using a read-only database as source, and record all changes to another database.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct UpdateDb<WriteDb = HashMapDb, CacheDb = SharedDb<SharedDb>> {
     write: WriteDb,
     cache: CacheDb,
@@ -12,8 +12,10 @@ pub struct UpdateDb<WriteDb = HashMapDb, CacheDb = SharedDb<SharedDb>> {
 /// Error type for UpdateDb
 #[derive(Debug, thiserror::Error)]
 pub enum UpdateDbError<WriteDbErr, CacheDbErr> {
+    /// Error when writing to the database
     #[error("write db error: {0}")]
     WriteDb(WriteDbErr),
+    /// Error when reading from the cache database
     #[error("cache db error: {0}")]
     CacheDb(CacheDbErr),
 }

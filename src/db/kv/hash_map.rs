@@ -1,5 +1,6 @@
 use super::KVDatabase;
 use std::convert::Infallible;
+use std::fmt::Debug;
 
 /// A simple in-memory key-value store backed by a `HashMap`.
 #[derive(Clone, Default)]
@@ -8,8 +9,15 @@ pub struct HashMapDb {
 }
 
 impl HashMapDb {
+    /// Create a new empty `HashMapDb`.
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+impl Debug for HashMapDb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("HashMapDb").field(&self.db.len()).finish()
     }
 }
 

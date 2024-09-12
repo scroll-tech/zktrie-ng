@@ -1,15 +1,17 @@
 use crate::db::{HashMapDb, KVDatabase};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Readonly version of the database, could be shared.
-#[derive(Clone)]
-pub struct SharedDb<Db = HashMapDb>(Rc<Db>);
+#[derive(Clone, Debug)]
+pub struct SharedDb<Db = HashMapDb>(Arc<Db>);
 
 /// Error type for SharedZkDatabase
 #[derive(Debug, thiserror::Error)]
 pub enum SharedZkDatabaseError<E> {
+    /// Try to write to a shared read-only database
     #[error("SharedZkDatabaseError is read-only")]
     ReadOnly,
+    /// Error when accessing the database
     #[error(transparent)]
     Inner(E),
 }

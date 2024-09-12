@@ -43,14 +43,20 @@ impl NodeType {
     }
 }
 
+/// A reference to another branch node that the node hash may not be calculated yet.
+#[derive(Clone, Debug)]
+pub(crate) struct LazyBranchHash {
+    index: usize,
+    resolved: Arc<OnceCell<ZkHash>>,
+}
+
+/// A lazy hash wrapper may be resolved later.
 #[derive(Clone, Debug)]
 pub enum LazyNodeHash {
+    /// A node hash that is already calculated.
     Hash(ZkHash),
-    /// This is a 'pointer' to an index in the `dirty_branch_nodes` array.
-    LazyBranch {
-        index: usize,
-        resolved: Arc<OnceCell<ZkHash>>,
-    },
+    /// A reference to another branch node that the node hash may not be calculated yet.
+    LazyBranch(LazyBranchHash),
 }
 
 /// Leaf node can hold key-values.
@@ -86,8 +92,11 @@ pub struct BranchNode {
 /// Three kinds of nodes in the merkle tree.
 #[derive(Clone, Debug)]
 pub enum NodeKind {
+    /// An empty node.
     Empty,
+    /// A leaf node.
     Leaf(LeafNode),
+    /// A branch node.
     Branch(BranchNode),
 }
 
@@ -110,10 +119,13 @@ pub struct Node<H> {
 /// Errors that can occur when parsing a node.
 #[derive(Debug, thiserror::Error)]
 pub enum ParseNodeError<E> {
+    /// Unexpected end, expected to read more bytes
     #[error("Expected at least {1} bytes, but only {0} bytes left")]
     Eof(usize, usize),
+    /// Invalid node type, may occur when reading legacy data
     #[error("Invalid node type: {0}, are you reading legacy data?")]
     InvalidNodeType(u8),
+    /// Error when hashing
     #[error(transparent)]
     HashError(E),
 }

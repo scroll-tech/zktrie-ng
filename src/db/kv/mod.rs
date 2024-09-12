@@ -17,6 +17,7 @@ pub use sled::SledDb;
 /// This trait is used to abstract over different key-value stores,
 /// works likes a `HashMap<Box<[u8]>, Box<[u8]>>`.
 pub trait KVDatabase: Clone {
+    /// Associated error type.
     type Error: std::error::Error;
 
     /// Insert a key-value pair into the database.

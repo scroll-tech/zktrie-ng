@@ -1,6 +1,7 @@
 use super::KVDatabase;
 use std::collections::BTreeMap;
 use std::convert::Infallible;
+use std::fmt::Debug;
 
 /// A simple in-memory key-value store backed by a `BTreeMap`.
 #[derive(Clone, Default)]
@@ -9,8 +10,15 @@ pub struct BTreeMapDb {
 }
 
 impl BTreeMapDb {
+    /// Create a new empty `BTreeMapDb`.
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+impl Debug for BTreeMapDb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BTreeMapDb").field(&self.db.len()).finish()
     }
 }
 
