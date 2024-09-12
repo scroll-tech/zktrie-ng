@@ -108,7 +108,11 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
     }
 
     /// Delete a key from the trie
-    pub fn delete(&mut self, key: &[u8]) -> Result<(), H, Db> {}
+    pub fn delete(&mut self, key: &[u8]) -> Result<(), H, Db> {
+        let node_key = self.key_hasher.hash(key)?;
+        self.delete_node(self.root.clone(), node_key, 0)?;
+        Ok(())
+    }
 
     /// Commit changes of the trie to the database
     pub fn commit(&mut self) -> Result<(), H, Db> {
@@ -307,6 +311,96 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
 
         self.dirty_branch_nodes.push(new_parent);
         Ok(lazy_hash)
+    }
+
+    fn delete_node(
+        &mut self,
+        root_hash: LazyNodeHash,
+        node_key: ZkHash,
+        level: usize,
+    ) -> Result<(LazyNodeHash, bool), H, Db> {
+        if level >= MAX_LEVEL {
+            return Err(ZkTrieError::MaxLevelReached);
+        }
+        let root = self.get_node(root_hash)?;
+        match root.node_type() {
+            NodeType::Empty => Err(ZkTrieError::NodeNotFound),
+            NodeType::Leaf => {
+                if root.as_leaf().unwrap().node_key() != &node_key {
+                    Err(ZkTrieError::NodeNotFound)
+                } else {
+                    Ok((LazyNodeHash::Hash(ZkHash::ZERO), true))
+                }
+            }
+            _ => {
+                let path = get_path(&node_key, level);
+                let (node_type, child_left, child_right) = root.into_branch().unwrap().into_parts();
+                let (child_hash, sibling_hash) = if path {
+                    (child_right, child_left)
+                } else {
+                    (child_left, child_right)
+                };
+
+                let is_sibling_terminal = match (path, node_type) {
+                    (_, NodeType::BranchLTRT) => true,
+                    (true, NodeType::BranchLTRB) => true,
+                    (false, NodeType::BranchLBRT) => true,
+                    _ => false,
+                };
+
+                let (new_child_hash, is_new_child_terminal) =
+                    self.delete_node(child_hash, node_key, level + 1)?;
+
+                let (left_child, right_child, is_left_terminal, is_right_terminal) = if path {
+                    (
+                        sibling_hash,
+                        new_child_hash,
+                        is_sibling_terminal,
+                        is_new_child_terminal,
+                    )
+                } else {
+                    (
+                        new_child_hash,
+                        sibling_hash,
+                        is_new_child_terminal,
+                        is_sibling_terminal,
+                    )
+                };
+
+                let new_node_type = if is_left_terminal && is_right_terminal {
+                    let left_is_empty = left_child.is_zero();
+                    let right_is_empty = right_child.is_zero();
+
+                    // If both children are terminal and one of them is empty, prune the root node
+                    // and return the non-empty child
+                    if left_is_empty || right_is_empty {
+                        if left_is_empty {
+                            return Ok((right_child, true));
+                        }
+                        return Ok((left_child, true));
+                    } else {
+                        NodeType::BranchLTRT
+                    }
+                } else if is_left_terminal {
+                    NodeType::BranchLTRB
+                } else if is_right_terminal {
+                    NodeType::BranchLBRT
+                } else {
+                    NodeType::BranchLBRB
+                };
+
+                let new_parent = Node::new_branch(new_node_type, left_child, right_child);
+
+                let lazy_hash = LazyNodeHash::LazyBranch(LazyBranchHash {
+                    index: self.dirty_branch_nodes.len(),
+                    resolved: new_parent.node_hash.clone(),
+                });
+
+                self.dirty_branch_nodes.push(new_parent);
+
+                Ok((lazy_hash, false))
+            }
+        }
     }
 
     fn resolve_commit(&mut self, node_hash: LazyNodeHash) -> Result<ZkHash, H, Db> {
