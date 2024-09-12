@@ -6,7 +6,7 @@ use crate::hash::{
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// RefCachedKeyHasher Error
+/// Error type for [`RefCachedKeyHasher`]
 #[derive(Debug, thiserror::Error)]
 pub enum RefCachedKeyHasherErr<DbErr> {
     /// Error when read write db

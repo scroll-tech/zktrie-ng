@@ -5,6 +5,7 @@
 
 #[macro_use]
 extern crate tracing;
+extern crate core;
 
 pub mod db;
 // pub mod error;

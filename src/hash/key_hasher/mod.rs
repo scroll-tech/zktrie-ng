@@ -1,3 +1,4 @@
+//! KeyHasher is a trait that helps to utilize cache while hashing keys.
 use crate::hash::{HashScheme, ZkHash};
 use std::error::Error;
 
@@ -21,7 +22,9 @@ pub enum KeyHasherError<HashErr> {
     Other(Box<dyn Error>),
 }
 
+/// Hasher for keys.
 pub trait KeyHasher<H: HashScheme> {
+    /// Hash a key.
     fn hash(&self, key: &[u8]) -> Result<ZkHash, KeyHasherError<H::Error>> {
         H::hash_bytes(key).map_err(KeyHasherError::Hash)
     }

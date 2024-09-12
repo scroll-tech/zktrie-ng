@@ -1,3 +1,4 @@
+//! KVDatabase in-memory implementation using a [`BTreeMap`].
 use super::KVDatabase;
 use std::collections::BTreeMap;
 use std::convert::Infallible;

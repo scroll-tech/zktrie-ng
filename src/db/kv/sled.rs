@@ -1,3 +1,8 @@
+//! KVDatabase implementation using [`sled`](https://docs.rs/sled/latest/sled/).
+//!
+//! `sled` is a high-performance embedded database with an API
+//! that is similar to a BTreeMap<[u8], [u8]>, but with several additional capabilities
+//! for assisting creators of stateful systems.
 use super::KVDatabase;
 use sled::Batch;
 

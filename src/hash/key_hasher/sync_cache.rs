@@ -5,6 +5,7 @@ use crate::hash::{
 };
 use std::sync::{Arc, Mutex};
 
+/// Error type for [`SyncCachedKeyHasher`]
 #[derive(Debug, thiserror::Error)]
 pub enum SyncCachedKeyHasherErr<DbErr> {
     /// Error when read write db
