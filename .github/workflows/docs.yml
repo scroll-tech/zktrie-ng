@@ -43,6 +43,7 @@ jobs:
             -cvf "$RUNNER_TEMP/artifact.tar" \
             --exclude=.git \
             --exclude=.github \
+          .
 
   deploy:
     # Only deploy if a push to main
