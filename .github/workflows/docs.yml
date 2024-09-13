@@ -28,7 +28,7 @@ jobs:
           cache-on-failure: true
 
       - name: Build docs
-        run: RUSTDOCFLAGS="--enable-index-page -Zunstable-options --cfg docsrs" cargo doc --all --no-deps
+        run: RUSTDOCFLAGS="--enable-index-page -Zunstable-options --cfg docsrs" cargo doc --features sled,scroll --all --no-deps
 
       - name: Archive artifact
         shell: sh
