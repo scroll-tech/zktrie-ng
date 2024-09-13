@@ -62,7 +62,7 @@ pub enum LazyNodeHash {
 /// Leaf node can hold key-values.
 ///
 /// The `value_hash` is computed by [`HashScheme::hash_bytes_array`].
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct LeafNode {
     /// The node's key stored in a leaf node.
     node_key: ZkHash,

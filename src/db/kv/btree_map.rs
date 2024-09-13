@@ -5,7 +5,13 @@ use std::convert::Infallible;
 use std::fmt::Debug;
 
 /// A simple in-memory key-value store backed by a `BTreeMap`.
-#[derive(Clone, Default)]
+///
+/// It's intended to be not `Clone`, since [`Clone::clone`] will clone the entire [`BTreeMap`].
+///
+/// If you need to clone the entire database,
+/// you can use [`BTreeMapDb::inner`] to get the inner [`BTreeMap`],
+/// and then clone the [`BTreeMap`] manually and create a new via [`BTreeMapDb::from_map`].
+#[derive(Default)]
 pub struct BTreeMapDb {
     db: BTreeMap<Box<[u8]>, Box<[u8]>>,
 }
@@ -14,6 +20,21 @@ impl BTreeMapDb {
     /// Create a new empty `BTreeMapDb`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a new `BTreeMapDb` from a `BTreeMap`.
+    pub fn from_map(db: BTreeMap<Box<[u8]>, Box<[u8]>>) -> Self {
+        Self { db }
+    }
+
+    /// Get the inner `BTreeMap`.
+    pub fn inner(&self) -> &BTreeMap<Box<[u8]>, Box<[u8]>> {
+        &self.db
+    }
+
+    /// Get the inner `BTreeMap`.
+    pub fn into_inner(self) -> BTreeMap<Box<[u8]>, Box<[u8]>> {
+        self.db
     }
 }
 

@@ -20,7 +20,7 @@ const HASH_DOMAIN_BYTE32: u64 = 2 * HASH_DOMAIN_ELEMS_BASE;
 pub const NODE_KEY_VALID_BYTES: u32 = 31;
 
 /// The maximum trie depth.
-pub const TRIE_MAX_LEVELS: usize = (NODE_KEY_VALID_BYTES * 8) as usize;
+const TRIE_MAX_LEVELS: usize = (NODE_KEY_VALID_BYTES * 8) as usize;
 
 /// The Poseidon hash scheme.
 #[derive(Default, Copy, Clone, Debug)]
@@ -57,6 +57,8 @@ impl HashOutput for Fr {
 }
 
 impl HashScheme for Poseidon {
+    const TRIE_MAX_LEVELS: usize = TRIE_MAX_LEVELS;
+
     type Error = PoseidonError;
 
     fn new_hash_try_from_bytes(bytes: &[u8]) -> Result<ZkHash, Self::Error> {

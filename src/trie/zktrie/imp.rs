@@ -6,27 +6,23 @@ use std::fmt::{Debug, Formatter};
 type Result<T, H, DB> =
     std::result::Result<T, ZkTrieError<<H as HashScheme>::Error, <DB as KVDatabase>::Error>>;
 
-impl<const MAX_LEVEL: usize, H: HashScheme> Default for ZkTrie<MAX_LEVEL, H> {
+impl Default for ZkTrie {
     fn default() -> Self {
         Self::new(HashMapDb::new(), NoCacheHasher)
     }
 }
 
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug
-    for ZkTrie<MAX_LEVEL, H, Db, K>
-{
+impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug for ZkTrie<H, Db, K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZkTrie")
-            .field("MAX_LEVEL", &MAX_LEVEL)
+            .field("MAX_LEVEL", &H::TRIE_MAX_LEVELS)
             .field("hash_scheme", &std::any::type_name::<H>())
             .field("root", &self.root)
             .field("is_dirty", &self.is_dirty())
             .finish()
     }
 }
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
-    ZkTrie<MAX_LEVEL, H, Db, K>
-{
+impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// Create a new zkTrie
     #[inline(always)]
     pub fn new(db: Db, key_hasher: K) -> Self {
@@ -45,7 +41,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
             _hash_scheme: std::marker::PhantomData,
         };
 
-        this.get_node(&root)?;
+        this.get_node_by_hash(root)?;
 
         Ok(this)
     }
@@ -65,7 +61,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
     /// Get a value from the trie, which can be decoded from bytes
     pub fn get<const LEN: usize, T: DecodeValueBytes<LEN>>(&self, key: &[u8]) -> Result<T, H, Db> {
         let node_key = self.key_hasher.hash(key)?;
-        let node = self.get_node(node_key)?;
+        let node = self.get_node_by_key(&node_key)?;
         match node.node_type() {
             NodeType::Empty => Err(ZkTrieError::NodeNotFound),
             NodeType::Leaf => {
@@ -94,13 +90,16 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
     }
 
     /// Update the trie with a new key-values pair
+    #[instrument(level = "trace", skip_all)]
     pub fn raw_update(
         &mut self,
         key: &[u8],
         value_preimages: Vec<[u8; 32]>,
         compression_flags: u32,
     ) -> Result<(), H, Db> {
+        trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
+        trace!(node_key = ?node_key);
         let new_leaf = Node::new_leaf(node_key, value_preimages, compression_flags, None)
             .map_err(ZkTrieError::Hash)?;
         self.root = self.add_leaf(new_leaf, self.root.clone(), 0)?.0;
@@ -130,15 +129,18 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
         Ok(())
     }
 
-    /// Get a node from the trie
-    pub fn get_node(&self, node_hash: impl Into<LazyNodeHash>) -> Result<Node<H>, H, Db> {
+    /// Get a node from the trie by node hash
+    #[instrument(level = "trace", skip(self, node_hash), ret)]
+    pub fn get_node_by_hash(&self, node_hash: impl Into<LazyNodeHash>) -> Result<Node<H>, H, Db> {
         let node_hash = node_hash.into();
         if node_hash.is_zero() {
             return Ok(Node::<H>::empty());
         }
+        trace!(node_hash = ?node_hash);
         match node_hash {
             LazyNodeHash::Hash(node_hash) => {
                 if let Some(node) = self.dirty_leafs.get(&node_hash) {
+                    trace!("Found node in dirty leafs");
                     Ok(node.clone())
                 } else {
                     let node = self
@@ -161,20 +163,50 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
         }
     }
 
+    /// Get a node from the trie by node key
+    #[instrument(level = "trace", skip(self, node_key), ret)]
+    pub fn get_node_by_key(&self, node_key: &ZkHash) -> Result<Node<H>, H, Db> {
+        let mut next_hash = self.root.clone();
+        for i in 0..H::TRIE_MAX_LEVELS {
+            let n = self.get_node_by_hash(next_hash)?;
+            match n.node_type() {
+                NodeType::Empty => return Ok(Node::<H>::empty()),
+                NodeType::Leaf => {
+                    let leaf = n.as_leaf().unwrap();
+                    if leaf.node_key() == node_key {
+                        return Ok(n);
+                    } else {
+                        return Err(ZkTrieError::NodeNotFound);
+                    }
+                }
+                _ => {
+                    let branch = n.into_branch().unwrap();
+                    if get_path(node_key, i) {
+                        next_hash = branch.child_right().clone();
+                    } else {
+                        next_hash = branch.child_left().clone();
+                    }
+                }
+            }
+        }
+        Err(ZkTrieError::NodeNotFound)
+    }
+
     /// Recursively adds a new leaf in the MT while updating the path
     ///
     /// # Returns
     /// The new added node hash, and a boolean indicating if added node is terminal
+    #[instrument(level = "trace", skip_all, ret)]
     fn add_leaf(
         &mut self,
         leaf: Node<H>,
         curr_node_hash: LazyNodeHash,
         level: usize,
     ) -> Result<(LazyNodeHash, bool), H, Db> {
-        if level >= MAX_LEVEL {
+        if level >= H::TRIE_MAX_LEVELS {
             return Err(ZkTrieError::MaxLevelReached);
         }
-        let n = self.get_node(curr_node_hash.clone())?;
+        let n = self.get_node_by_hash(curr_node_hash.clone())?;
         match n.node_type() {
             NodeType::Empty => {
                 // # Safety
@@ -265,7 +297,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
         new_leaf: Node<H>,
         level: usize,
     ) -> Result<LazyNodeHash, H, Db> {
-        if level >= MAX_LEVEL - 1 {
+        if level >= H::TRIE_MAX_LEVELS - 1 {
             return Err(ZkTrieError::MaxLevelReached);
         }
 
@@ -319,10 +351,10 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
         node_key: ZkHash,
         level: usize,
     ) -> Result<(LazyNodeHash, bool), H, Db> {
-        if level >= MAX_LEVEL {
+        if level >= H::TRIE_MAX_LEVELS {
             return Err(ZkTrieError::MaxLevelReached);
         }
-        let root = self.get_node(root_hash)?;
+        let root = self.get_node_by_hash(root_hash)?;
         match root.node_type() {
             NodeType::Empty => Err(ZkTrieError::NodeNotFound),
             NodeType::Leaf => {
@@ -341,12 +373,12 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
                     (child_left, child_right)
                 };
 
-                let is_sibling_terminal = match (path, node_type) {
-                    (_, NodeType::BranchLTRT) => true,
-                    (true, NodeType::BranchLTRB) => true,
-                    (false, NodeType::BranchLBRT) => true,
-                    _ => false,
-                };
+                let is_sibling_terminal = matches!(
+                    (path, node_type),
+                    (_, NodeType::BranchLTRT)
+                        | (true, NodeType::BranchLTRB)
+                        | (false, NodeType::BranchLBRT)
+                );
 
                 let (new_child_hash, is_new_child_terminal) =
                     self.delete_node(child_hash, node_key, level + 1)?;
@@ -416,7 +448,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
                 Ok(node_hash)
             }
             _ => {
-                let node = self.get_node(node_hash)?;
+                let node = self.get_node_by_hash(node_hash)?;
                 let branch = node.as_branch().unwrap();
                 self.resolve_commit(branch.child_left().clone())?;
                 self.resolve_commit(branch.child_right().clone())?;

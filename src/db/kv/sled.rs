@@ -1,13 +1,35 @@
-//! KVDatabase implementation using [`sled`](https://docs.rs/sled/latest/sled/).
+//! [`KVDatabase`] implementation using [`sled`](https://docs.rs/sled/latest/sled/).
 //!
-//! `sled` is a high-performance embedded database with an API
-//! that is similar to a BTreeMap<[u8], [u8]>, but with several additional capabilities
-//! for assisting creators of stateful systems.
+//! Different from [`HashMapDb`](crate::db::HashMapDb) and [`BTreeMapDb`](crate::db::BTreeMapDb),
+//! [`SledDb`] is `Clone`, since [`sled::Tree`] is `Clone`.
+//! Same db is shared between different instances of `SledDb`.
+//!
+//! ## Example
+//!
+//! ```rust
+//! use zktrie_ng::{
+//!     trie,
+//!     hash::{
+//!         key_hasher::NoCacheHasher,
+//!         poseidon::Poseidon,
+//!     },
+//!     db::SledDb,
+//! };
+//!
+//! // A ZkTrie using Poseidon hash scheme,
+//! // sled as backend kv database and NoCacheHasher as key hasher.
+//! type ZkTrie = trie::ZkTrie<Poseidon, SledDb, NoCacheHasher>;
+//!
+//! let db = sled::open("my_db").unwrap();
+//! let tree = db.open_tree("zk_trie").unwrap();
+//!
+//! let mut trie = ZkTrie::new(SledDb::new(tree), NoCacheHasher);
+//! ```
 use super::KVDatabase;
 use sled::Batch;
 
 /// A key-value store backed by `sled`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SledDb {
     db: sled::Tree,
 }

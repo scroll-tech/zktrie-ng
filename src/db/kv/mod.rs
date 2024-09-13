@@ -15,7 +15,7 @@ pub use sled::SledDb;
 ///
 /// This trait is used to abstract over different key-value stores,
 /// works likes a `HashMap<Box<[u8]>, Box<[u8]>>`.
-pub trait KVDatabase: Clone {
+pub trait KVDatabase {
     /// Associated error type.
     type Error: std::error::Error + 'static;
 
@@ -39,6 +39,8 @@ pub trait KVDatabase: Clone {
 
     /// Best-effort removal of a key-value pair from the database, used for garbage collection.
     ///
+    /// # Note
+    ///
     /// For implementations that do not support removal, this method should not be overridden.
     ///
     /// If `Ok(())` returns, the removal may be:
@@ -46,9 +48,9 @@ pub trait KVDatabase: Clone {
     /// - unsupported (the database does not support removal).
     /// - planned, but not yet executed (i.e. the database is busy and the operation is queued).
     ///
-    /// You shall never rely on the return value to determine if the key was present or not.
-    ///
     /// If `Err(e)` returns, it can only be: the database supports removal but the operation fails.
+    ///
+    /// You shall **NEVER** rely on the return value to determine if the key was present or not.
     fn remove(&mut self, _k: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }

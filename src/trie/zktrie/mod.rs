@@ -14,7 +14,7 @@ mod imp;
 mod tests;
 
 /// A zkTrie implementation.
-pub struct ZkTrie<const MAX_LEVEL: usize, H = Poseidon, Db = HashMapDb, K = NoCacheHasher> {
+pub struct ZkTrie<H = Poseidon, Db = HashMapDb, K = NoCacheHasher> {
     db: Db,
     key_hasher: K,
 

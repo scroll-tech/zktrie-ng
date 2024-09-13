@@ -1,19 +1,40 @@
 //! KVDatabase in-memory implementation using a [`BTreeMap`].
 use super::KVDatabase;
-use std::collections::BTreeMap;
+use crate::HashMap;
 use std::convert::Infallible;
 use std::fmt::Debug;
 
 /// A simple in-memory key-value store backed by a `HashMap`.
-#[derive(Clone, Default)]
+///
+/// It's intended to be not `Clone`, since [`Clone::clone`] will clone the entire [`HashMapDb`].
+///
+/// If you need to clone the entire database,
+/// you can use [`HashMapDb::inner`] to get the inner [`HashMapDb`],
+/// and then clone the [`HashMapDb`] manually and create a new via [`HashMapDb::from_map`].
+#[derive(Default)]
 pub struct HashMapDb {
-    db: crate::HashMap<Box<[u8]>, Box<[u8]>>,
+    db: HashMap<Box<[u8]>, Box<[u8]>>,
 }
 
 impl HashMapDb {
     /// Create a new empty `HashMapDb`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a new `BTreeMapDb` from a `BTreeMap`.
+    pub fn from_map(db: HashMap<Box<[u8]>, Box<[u8]>>) -> Self {
+        Self { db }
+    }
+
+    /// Get the inner `BTreeMap`.
+    pub fn inner(&self) -> &HashMap<Box<[u8]>, Box<[u8]>> {
+        &self.db
+    }
+
+    /// Get the inner `BTreeMap`.
+    pub fn into_inner(self) -> HashMap<Box<[u8]>, Box<[u8]>> {
+        self.db
     }
 }
 

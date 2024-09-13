@@ -1,5 +1,6 @@
 use super::*;
 use once_cell::sync::Lazy;
+use std::fmt::Debug;
 
 impl From<ZkHash> for LazyNodeHash {
     fn from(hash: ZkHash) -> Self {
@@ -74,6 +75,28 @@ impl LeafNode {
     #[inline]
     pub fn value_hash<H: HashScheme>(&self) -> &ZkHash {
         &self.value_hash
+    }
+}
+
+impl Debug for LeafNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LeafNode")
+            .field("node_key", &self.node_key)
+            .field(
+                "node_key_preimage",
+                &self.node_key_preimage.map(hex::encode),
+            )
+            .field(
+                "value_preimages",
+                &self
+                    .value_preimages
+                    .iter()
+                    .map(hex::encode)
+                    .collect::<Vec<_>>(),
+            )
+            .field("compress_flags", &self.compress_flags)
+            .field("value_hash", &self.value_hash)
+            .finish()
     }
 }
 

@@ -3,8 +3,8 @@
 mod node;
 pub use node::*;
 
-mod trie;
-pub use trie::*;
+mod zktrie;
+pub use zktrie::*;
 
 /// A trait for types that can be encoded into value bytes.
 pub trait EncodeValueBytes {
@@ -16,4 +16,10 @@ pub trait EncodeValueBytes {
 pub trait DecodeValueBytes<const LEN: usize> {
     /// Decode the values from bytes.
     fn decode_values_bytes(values: &[[u8; 32]; LEN]) -> Self;
+}
+
+impl<const LEN: usize> DecodeValueBytes<LEN> for [[u8; 32]; LEN] {
+    fn decode_values_bytes(values: &[[u8; 32]; LEN]) -> Self {
+        *values
+    }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::hash::poseidon::{tests::gen_random_bytes, TRIE_MAX_LEVELS};
+use crate::hash::poseidon::tests::gen_random_bytes;
 use rand::random;
 use rand::seq::SliceRandom;
 use std::fmt::Display;
@@ -7,7 +7,8 @@ use zktrie::HashField;
 use zktrie_rust::{db::SimpleDb, hash::AsHash, types::TrieHashScheme};
 
 type NodeOld = zktrie_rust::types::Node<AsHash<HashField>>;
-type TrieOld = zktrie_rust::raw::ZkTrieImpl<AsHash<HashField>, SimpleDb, TRIE_MAX_LEVELS>;
+type TrieOld =
+    zktrie_rust::raw::ZkTrieImpl<AsHash<HashField>, SimpleDb, { Poseidon::TRIE_MAX_LEVELS }>;
 fn new_trie_old() -> TrieOld {
     TrieOld::new_zktrie_impl(SimpleDb::new()).unwrap()
 }
@@ -16,7 +17,7 @@ fn new_trie_old() -> TrieOld {
 fn test_simple() {
     let mut old_trie = new_trie_old();
 
-    let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::default();
+    let mut trie = ZkTrie::default();
 
     let k = [1u8; 32];
     let v = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
@@ -41,7 +42,7 @@ fn test_randoms() {
 fn test_random() {
     let mut old_trie = new_trie_old();
 
-    let mut trie = ZkTrie::<TRIE_MAX_LEVELS>::default();
+    let mut trie = ZkTrie::default();
 
     let mut keys = Vec::new();
 
@@ -113,16 +114,14 @@ fn print_old_trie(trie: &TrieOld, hash: AsHash<HashField>, level: usize) {
     };
 }
 
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
-    ZkTrie<MAX_LEVEL, H, Db, K>
-{
+impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     fn print_node(
         &self,
         node_hash: LazyNodeHash,
         level: usize,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        let node = self.get_node(node_hash).unwrap();
+        let node = self.get_node_by_hash(node_hash).unwrap();
 
         let lead_char = if level == 0 { "" } else { "├ " };
 
@@ -158,9 +157,7 @@ impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>>
     }
 }
 
-impl<const MAX_LEVEL: usize, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Display
-    for ZkTrie<MAX_LEVEL, H, Db, K>
-{
+impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Display for ZkTrie<H, Db, K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.print_node(self.root.clone(), 0, f)
     }

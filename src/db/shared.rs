@@ -2,8 +2,38 @@ use crate::db::{HashMapDb, KVDatabase};
 use std::sync::Arc;
 
 /// Readonly version of the database, could be shared.
-#[derive(Clone, Debug)]
+///
+/// ## Example
+///
+/// ```rust
+/// use zktrie_ng::db::{HashMapDb, KVDatabase, SharedDb};
+///
+/// let mut db = HashMapDb::default();
+/// db.put(b"foo", b"bar").unwrap();
+///
+/// // db.clone() <- can not compile
+///
+/// let shared_db = SharedDb::new(db);
+///
+/// let _shared_trie = shared_db.clone();
+///
+/// assert_eq!(shared_db.get(b"foo").unwrap().unwrap().as_ref(), b"bar");
+/// ```
+#[derive(Debug)]
 pub struct SharedDb<Db = HashMapDb>(Arc<Db>);
+
+impl<Db: KVDatabase> SharedDb<Db> {
+    /// Create a new shared database
+    pub fn new(db: Db) -> Self {
+        Self(Arc::new(db))
+    }
+}
+
+impl<Db> Clone for SharedDb<Db> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 /// Error type for SharedZkDatabase
 #[derive(Debug, thiserror::Error)]
