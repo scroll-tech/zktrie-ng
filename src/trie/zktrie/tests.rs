@@ -3,7 +3,6 @@ use crate::hash::poseidon::tests::gen_random_bytes;
 use rand::random;
 use rand::seq::SliceRandom;
 use std::fmt::Display;
-use std::hash::Hash;
 use zktrie::HashField;
 use zktrie_rust::{db::SimpleDb, hash::AsHash, types::TrieHashScheme};
 
