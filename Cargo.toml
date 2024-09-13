@@ -53,3 +53,10 @@ scroll = ["dep:revm-primitives"]
 
 sled = ["dep:sled"]
 sled_compression = ["sled", "sled/zstd"]
+
+# MSRV 1.75 patch
+[patch.crates-io]
+alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0" }

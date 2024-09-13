@@ -32,8 +32,7 @@ checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
 [[package]]
 name = "alloy-eip2930"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0069cf0642457f87a01a014f6dc29d5d893cd4fd8fddf0c3cdfad1bb3ebafc41"
+source = "git+https://github.com/scroll-tech/alloy-eips?branch=v0.1.0#f8d7bec6cb9d38320742b89e54c3d8be59937918"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -42,8 +41,7 @@ dependencies = [
 [[package]]
 name = "alloy-eip7702"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d319bb544ca6caeab58c39cea8921c55d924d4f68f2c60f24f914673f9a74a"
+source = "git+https://github.com/scroll-tech/alloy-eips?branch=v0.1.0#f8d7bec6cb9d38320742b89e54c3d8be59937918"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -65,8 +63,7 @@ dependencies = [
 [[package]]
 name = "alloy-primitives"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a767e59c86900dd7c3ce3ecef04f3ace5ac9631ee150beb8b7d22f7fa3bbb2d7"
+source = "git+https://github.com/scroll-tech/alloy-core?branch=v0.8.0#3c8299a45f4722c024a0c34a1ef9b6453b7b3f45"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -2145,3 +2142,8 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[patch.unused]]
+name = "alloy-eips"
+version = "0.3.0"
+source = "git+https://github.com/scroll-tech/alloy.git?branch=v0.3.0#41bbe34a38a2b1536c58b7c938313a2db4e9369a"
