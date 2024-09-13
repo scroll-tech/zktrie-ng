@@ -84,7 +84,7 @@ jobs:
         run: cargo clippy --all --all-targets --features sled,scroll -- -D warnings
 
   test:
-    needs: [ clippy ]
+    needs: [ clippy-stable, clippy-nightly ]
     if: |
       github.event.pull_request.draft == false &&
       (github.event.action == 'ready_for_review' || needs.skip_check.outputs.should_skip != 'true')
