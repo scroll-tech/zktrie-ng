@@ -2,6 +2,7 @@ use super::*;
 use once_cell::sync::Lazy;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::mem::size_of;
 
 impl From<ZkHash> for LazyNodeHash {
     fn from(hash: ZkHash) -> Self {

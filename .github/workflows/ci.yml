@@ -45,7 +45,7 @@ jobs:
       - name: Cargo fmt
         run: cargo fmt --all -- --check
 
-  clippy:
+  clippy-stable:
     needs: [ fmt ]
     if: |
       github.event.pull_request.draft == false &&
@@ -53,21 +53,35 @@ jobs:
     name: Clippy
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        rust: [ "1.75", "nightly-2024-07-07" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: "1.75"
           components: clippy
       - name: cargo cache
         uses: Swatinem/rust-cache@v2
-      - name: clippy default
-        run: cargo clippy --all --all-targets --features sled,scroll -- -D warnings
+      - name: clippy
+        run: cargo clippy --all --features sled,scroll -- -D warnings
 
+  clippy-nightly:
+    needs: [ fmt ]
+    if: |
+      github.event.pull_request.draft == false &&
+      (github.event.action == 'ready_for_review' || needs.skip_check.outputs.should_skip != 'true')
+    name: Clippy
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "nightly-2024-07-07"
+          components: clippy
+      - name: cargo cache
+        uses: Swatinem/rust-cache@v2
+      - name: clippy
+        run: cargo clippy --all --all-targets --features sled,scroll -- -D warnings
 
   test:
     needs: [ clippy ]
