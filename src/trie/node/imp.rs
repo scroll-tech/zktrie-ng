@@ -340,7 +340,7 @@ impl<H: HashScheme> Node<H> {
     /// # Panics
     ///
     /// Panics if the lazy hash is not resolved.
-    pub fn canonical_value(&self) -> Vec<u8> {
+    pub fn canonical_value(&self, include_key_preimage: bool) -> Vec<u8> {
         match &self.data {
             NodeKind::Leaf(leaf) => {
                 let mut bytes = Vec::with_capacity(
@@ -353,7 +353,14 @@ impl<H: HashScheme> Node<H> {
                 for preimage in leaf.value_preimages.iter() {
                     bytes.extend_from_slice(preimage);
                 }
-                bytes.push(0); // do not store node_key_preimage
+                if include_key_preimage && leaf.node_key_preimage.is_some() {
+                    let preimage = leaf.node_key_preimage.as_ref().unwrap();
+                    bytes.push(preimage.len() as u8);
+                    bytes.extend_from_slice(preimage);
+                } else {
+                    // do not store node_key_preimage
+                    bytes.push(0);
+                }
                 bytes
             }
             NodeKind::Branch(branch) => {

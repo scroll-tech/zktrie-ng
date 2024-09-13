@@ -133,6 +133,42 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         Ok(())
     }
 
+    /// Prove constructs a merkle proof for key.
+    /// The result contains all encoded nodes on the path to the value at key.
+    /// The value itself is also included in the last node and can be retrieved by verifying the proof.
+    ///
+    /// If the trie does not contain a value for key, the returned proof contains all
+    /// nodes of the longest existing prefix of the key (at least the root node), ending
+    /// with the node that proves the absence of the key.
+    ///
+    /// If the trie contain a non-empty leaf for key, the returned proof contains all
+    /// nodes on the path to the leaf node, ending with the leaf node.
+    pub fn prove(&self, key: &[u8]) -> Result<Vec<Vec<u8>>, H, Db> {
+        const MAGIC_BYTES: &[u8] = b"THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI";
+
+        let node_key = self.key_hasher.hash(key)?;
+
+        let mut next_hash = self.root.clone();
+        let mut proof = Vec::with_capacity(H::TRIE_MAX_LEVELS + 1);
+        for i in 0..H::TRIE_MAX_LEVELS {
+            let n = self.get_node_by_hash(next_hash)?;
+            proof.push(n.canonical_value(true));
+            match n.node_type() {
+                NodeType::Empty | NodeType::Leaf => break,
+                _ => {
+                    let (_, child_left, child_right) = n.into_branch().unwrap().into_parts();
+                    next_hash = if get_path(&node_key, i) {
+                        child_right
+                    } else {
+                        child_left
+                    };
+                }
+            }
+        }
+        proof.push(MAGIC_BYTES.to_vec());
+        Ok(proof)
+    }
+
     /// Garbage collect the trie
     pub fn gc(&mut self) -> Result<(), H, Db> {
         if !self.db.gc_enabled() {
@@ -540,7 +576,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     self.db
                         .put_owned(
                             node_hash.to_vec().into_boxed_slice(),
-                            node.canonical_value().into_boxed_slice(),
+                            node.canonical_value(false).into_boxed_slice(),
                         )
                         .map_err(ZkTrieError::Db)?;
                 }
@@ -557,7 +593,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 self.db
                     .put_owned(
                         node_hash.to_vec().into_boxed_slice(),
-                        node.canonical_value().into_boxed_slice(),
+                        node.canonical_value(false).into_boxed_slice(),
                     )
                     .map_err(ZkTrieError::Db)?;
                 Ok(node_hash)

@@ -66,6 +66,41 @@ fn test_random() {
         trie.commit().unwrap();
     }
 
+    // existence proof
+    for (k, old_key) in keys.choose_multiple(&mut rand::thread_rng(), 10) {
+        let old_proof = old_trie
+            .prove(old_key)
+            .unwrap()
+            .iter()
+            .map(|n| n.value())
+            .collect::<Vec<Vec<u8>>>();
+        let mut new_proof = trie.prove(k).unwrap();
+        new_proof.pop(); // pop the magic bytes
+
+        assert_eq!(old_proof, new_proof);
+    }
+
+    // non-existence proof
+    for _ in 0..10 {
+        let k: [u8; 32] = random();
+        if keys.iter().any(|(key, _)| key == &k) {
+            // rare case
+            continue;
+        }
+        let old_key = NodeOld::hash_bytes(&k).unwrap();
+
+        let old_proof = old_trie
+            .prove(&old_key)
+            .unwrap()
+            .iter()
+            .map(|n| n.value())
+            .collect::<Vec<Vec<u8>>>();
+        let mut new_proof = trie.prove(&k).unwrap();
+        new_proof.pop(); // pop the magic bytes
+
+        assert_eq!(old_proof, new_proof);
+    }
+
     trie.full_gc(HashMapDb::default()).unwrap();
 
     for (k, _) in keys.iter() {

@@ -16,7 +16,7 @@ fn test_empty_node() {
         node_hash.as_ref()
     );
     assert_eq!(
-        Node::<Poseidon>::empty().canonical_value(),
+        Node::<Poseidon>::empty().canonical_value(false),
         expected.canonical_value()
     );
 }
@@ -41,7 +41,7 @@ fn test_leaf_node() {
         unsafe { node.get_node_hash_unchecked() },
         node_hash.as_ref()
     );
-    assert_eq!(node.canonical_value(), expected.canonical_value());
+    assert_eq!(node.canonical_value(false), expected.canonical_value());
 
     let expected = OldNode::new_leaf_node(
         AsHash::from_bytes(&[1u8; 32]).unwrap(),
@@ -64,7 +64,7 @@ fn test_leaf_node() {
         unsafe { node.get_node_hash_unchecked() },
         node_hash.as_ref()
     );
-    assert_eq!(node.canonical_value(), expected.canonical_value());
+    assert_eq!(node.canonical_value(false), expected.canonical_value());
 }
 
 #[test]
@@ -88,5 +88,5 @@ fn test_branch_node() {
         node.get_or_calculate_node_hash().unwrap(),
         node_hash.as_ref()
     );
-    assert_eq!(node.canonical_value(), expected.canonical_value());
+    assert_eq!(node.canonical_value(false), expected.canonical_value());
 }
