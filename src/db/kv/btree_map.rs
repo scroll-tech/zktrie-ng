@@ -33,18 +33,6 @@ impl BTreeMapDb {
         Self { gc_enabled, db }
     }
 
-    /// Enable or disable garbage collection.
-    #[inline]
-    pub fn set_gc_enabled(&mut self, gc_enabled: bool) {
-        self.gc_enabled = gc_enabled;
-    }
-
-    /// Check if garbage collection is enabled.
-    #[inline]
-    pub fn is_gc_enabled(&self) -> bool {
-        self.gc_enabled
-    }
-
     /// Get the inner `BTreeMap`.
     pub fn inner(&self) -> &BTreeMap<Box<[u8]>, Box<[u8]>> {
         &self.db
@@ -77,6 +65,10 @@ impl KVDatabase for BTreeMapDb {
         Ok(self.db.get(k))
     }
 
+    fn set_gc_enabled(&mut self, gc_enabled: bool) {
+        self.gc_enabled = gc_enabled;
+    }
+
     fn gc_enabled(&self) -> bool {
         self.gc_enabled
     }
@@ -87,6 +79,22 @@ impl KVDatabase for BTreeMapDb {
         } else {
             warn!("garbage collection is disabled, remove is ignored");
         }
+        Ok(())
+    }
+
+    fn retain<F>(&mut self, mut f: F) -> Result<(), Self::Error>
+    where
+        F: FnMut(&[u8], &[u8]) -> bool,
+    {
+        let mut removed = 0;
+        self.db.retain(|k, v| {
+            let keep = f(k, v);
+            if !keep {
+                removed += 1;
+            }
+            keep
+        });
+        trace!("{} key-value pairs removed", removed);
         Ok(())
     }
 

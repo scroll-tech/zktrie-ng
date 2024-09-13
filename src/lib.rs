@@ -20,7 +20,7 @@
 //! // HashMap as backend kv database and NoCacheHasher as key hasher.
 //! type ZkTrie = trie::ZkTrie<Poseidon, HashMapDb, NoCacheHasher>;
 //!
-//! let mut trie = ZkTrie::new(HashMapDb::new(), NoCacheHasher);
+//! let mut trie = ZkTrie::new(HashMapDb::default(), NoCacheHasher);
 //! // or this is default mode
 //! // let mut trie = ZkTrie::default();
 //!

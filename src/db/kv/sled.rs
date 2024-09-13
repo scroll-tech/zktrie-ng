@@ -41,18 +41,6 @@ impl SledDb {
         Self { gc_enabled, db }
     }
 
-    /// Enable or disable garbage collection.
-    #[inline]
-    pub fn set_gc_enabled(&mut self, gc_enabled: bool) {
-        self.gc_enabled = gc_enabled;
-    }
-
-    /// Check if garbage collection is enabled.
-    #[inline]
-    pub fn is_gc_enabled(&self) -> bool {
-        self.gc_enabled
-    }
-
     /// Get the inner [`sled::Tree`]
     pub fn inner(&self) -> &sled::Tree {
         &self.db
@@ -83,6 +71,10 @@ impl KVDatabase for SledDb {
         self.db.get(k)
     }
 
+    fn set_gc_enabled(&mut self, gc_enabled: bool) {
+        self.gc_enabled = gc_enabled;
+    }
+
     fn gc_enabled(&self) -> bool {
         self.gc_enabled
     }
@@ -94,6 +86,23 @@ impl KVDatabase for SledDb {
             warn!("garbage collection is disabled, remove is ignored");
         }
         Ok(())
+    }
+
+    fn retain<F>(&mut self, mut f: F) -> Result<(), Self::Error>
+    where
+        F: FnMut(&[u8], &[u8]) -> bool,
+    {
+        let mut removed = 0;
+        let mut batch = Batch::default();
+        for entry in self.db.iter() {
+            let (k, v) = entry?;
+            if !f(k.as_ref(), v.as_ref()) {
+                batch.remove(k);
+                removed += 1;
+            }
+        }
+        trace!("{} key-value pairs removed", removed);
+        self.db.apply_batch(batch)
     }
 
     fn extend<T: IntoIterator<Item = (Box<[u8]>, Box<[u8]>)>>(

@@ -26,6 +26,12 @@ pub struct ZkTrie<H = Poseidon, Db = HashMapDb, K = NoCacheHasher> {
     _hash_scheme: std::marker::PhantomData<H>,
 }
 
+/// An iterator over the zkTrie.
+pub struct ZkTrieIterator<'a, H, Db, K> {
+    trie: &'a ZkTrie<H, Db, K>,
+    stack: Vec<LazyNodeHash>,
+}
+
 /// Errors that can occur when using a zkTrie.
 #[derive(Debug, thiserror::Error)]
 pub enum ZkTrieError<HashErr, DbErr> {

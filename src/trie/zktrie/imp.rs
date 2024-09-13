@@ -135,6 +135,10 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
 
     /// Garbage collect the trie
     pub fn gc(&mut self) -> Result<(), H, Db> {
+        if !self.db.gc_enabled() {
+            warn!("garbage collection is disabled");
+            return Ok(());
+        }
         let is_dirty = self.is_dirty();
         let mut removed = 0;
         self.gc_nodes
@@ -160,6 +164,42 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             });
         trace!("garbage collection done, removed {removed} nodes");
         Ok(())
+    }
+
+    /// Run full garbage collection
+    pub fn full_gc(&mut self) -> Result<(), H, Db> {
+        if self.is_dirty() {
+            warn!("dirty nodes found, commit before run full_gc");
+            return Ok(());
+        }
+        let gc_enabled = self.db.gc_enabled();
+        self.db.set_gc_enabled(true);
+
+        // traverse the trie and collect all nodes
+        let mut nodes = HashSet::new();
+        for node in self.iter() {
+            let node = node?;
+            nodes.insert(
+                *node
+                    .get_or_calculate_node_hash()
+                    .map_err(ZkTrieError::Hash)?,
+            );
+        }
+
+        self.db
+            .retain(|k, _| nodes.contains(k))
+            .map_err(ZkTrieError::Db)?;
+        self.db.set_gc_enabled(gc_enabled);
+
+        Ok(())
+    }
+
+    /// Get an iterator of the trie
+    pub fn iter(&self) -> ZkTrieIterator<H, Db, K> {
+        ZkTrieIterator {
+            trie: self,
+            stack: vec![self.root.clone()],
+        }
     }
 
     /// Get a node from the trie by node hash
@@ -500,6 +540,35 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 Ok(node_hash)
             }
         }
+    }
+}
+
+impl<'a, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug for ZkTrieIterator<'a, H, Db, K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZkTrieIterator")
+            .field("trie", &self.trie)
+            .finish()
+    }
+}
+
+impl<'a, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Iterator for ZkTrieIterator<'a, H, Db, K> {
+    type Item = Result<Node<H>, H, Db>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(node_hash) = self.stack.pop() {
+            return match self.trie.get_node_by_hash(node_hash) {
+                Ok(node) => {
+                    if node.is_branch() {
+                        let branch = node.as_branch().expect("infalible");
+                        self.stack.push(branch.child_left().clone());
+                        self.stack.push(branch.child_right().clone());
+                    }
+                    Some(Ok(node))
+                }
+                Err(e) => Some(Err(e)),
+            };
+        }
+        None
     }
 }
 

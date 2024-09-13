@@ -38,6 +38,9 @@ pub trait KVDatabase {
     fn get(&self, k: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error>;
 
     /// Check if garbage collection is enabled.
+    fn set_gc_enabled(&mut self, _gc_enabled: bool) {}
+
+    /// Check if garbage collection is enabled.
     fn gc_enabled(&self) -> bool {
         false
     }
@@ -57,6 +60,19 @@ pub trait KVDatabase {
     ///
     /// You shall **NEVER** rely on the return value to determine if the key was present or not.
     fn remove(&mut self, _k: &[u8]) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Retain only the key-value pairs that satisfy the predicate.
+    ///
+    /// # Note
+    ///
+    /// Same as [`KVDatabase::remove`], this method is best-effort and should not be relied on
+    /// to determine if the key was present or not.
+    fn retain<F>(&mut self, _f: F) -> Result<(), Self::Error>
+    where
+        F: FnMut(&[u8], &[u8]) -> bool,
+    {
         Ok(())
     }
 

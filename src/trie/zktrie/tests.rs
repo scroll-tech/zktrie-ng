@@ -3,6 +3,7 @@ use crate::hash::poseidon::tests::gen_random_bytes;
 use rand::random;
 use rand::seq::SliceRandom;
 use std::fmt::Display;
+use std::hash::Hash;
 use zktrie::HashField;
 use zktrie_rust::{db::SimpleDb, hash::AsHash, types::TrieHashScheme};
 
@@ -66,6 +67,14 @@ fn test_random() {
         trie.commit().unwrap();
     }
 
+    trie.full_gc().unwrap();
+
+    for (k, _) in keys.iter() {
+        let node_key = <NoCacheHasher as KeyHasher<Poseidon>>::hash(&NoCacheHasher, k).unwrap();
+        // full gc didn't delete anything unexpected
+        trie.get_node_by_key(&node_key).unwrap();
+    }
+
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 
     for (k, old_key) in keys.choose_multiple(&mut rand::thread_rng(), 10) {
@@ -82,7 +91,7 @@ fn test_random() {
     // println!("New:");
     // println!("{}", trie);
 
-    trie.gc().unwrap();
+    trie.full_gc().unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 }
