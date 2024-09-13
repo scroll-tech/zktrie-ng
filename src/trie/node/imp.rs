@@ -1,6 +1,6 @@
 use super::*;
 use once_cell::sync::Lazy;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 
 impl From<ZkHash> for LazyNodeHash {
     fn from(hash: ZkHash) -> Self {
@@ -16,14 +16,23 @@ impl From<&ZkHash> for LazyNodeHash {
 
 impl LazyNodeHash {
     /// Check if the hash value is zero.
-    ///
-    /// If the hash is lazy and unresolved, `false` will be returned.
-    pub fn is_zero(&self) -> bool {
+    #[inline]
+    pub fn is_zero(&self) -> Option<bool> {
+        self.try_as_hash().map(|hash| hash.is_zero())
+    }
+
+    /// Check if the hash value is resolved.
+    #[inline]
+    pub fn is_resolved(&self) -> bool {
+        self.try_as_hash().is_some()
+    }
+
+    /// Try to get the hash value.
+    #[inline]
+    pub fn try_as_hash(&self) -> Option<&ZkHash> {
         match self {
-            LazyNodeHash::Hash(hash) => hash.is_zero(),
-            LazyNodeHash::LazyBranch(LazyBranchHash { resolved, .. }) => {
-                resolved.get().map_or(false, ZkHash::is_zero)
-            }
+            LazyNodeHash::Hash(hash) => Some(hash),
+            LazyNodeHash::LazyBranch(LazyBranchHash { resolved, .. }) => resolved.get(),
         }
     }
 
@@ -36,6 +45,18 @@ impl LazyNodeHash {
         match self {
             LazyNodeHash::Hash(hash) => hash,
             LazyNodeHash::LazyBranch(LazyBranchHash { resolved, .. }) => resolved.get().unwrap(),
+        }
+    }
+}
+
+impl Debug for LazyNodeHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LazyNodeHash::Hash(hash) => write!(f, "{}", hash),
+            LazyNodeHash::LazyBranch(LazyBranchHash { index, resolved }) => match resolved.get() {
+                Some(hash) => write!(f, "{}", hash),
+                None => write!(f, "LazyBranch({})", index),
+            },
         }
     }
 }
@@ -123,6 +144,16 @@ impl BranchNode {
     #[inline]
     pub fn into_parts(self) -> (NodeType, LazyNodeHash, LazyNodeHash) {
         (self.node_type, self.child_left, self.child_right)
+    }
+}
+
+impl Debug for NodeKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeKind::Empty => write!(f, "Empty"),
+            NodeKind::Leaf(leaf) => leaf.fmt(f),
+            NodeKind::Branch(branch) => branch.fmt(f),
+        }
     }
 }
 
@@ -310,6 +341,43 @@ impl<H: HashScheme> Node<H> {
                 vec![Empty as u8]
             }
         }
+    }
+}
+
+impl<H: HashScheme> Debug for Node<H> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("Node");
+        debug.field("hash_scheme", &std::any::type_name::<H>());
+        match self.node_hash.get() {
+            Some(hash) => debug.field("node_hash", hash),
+            None => debug.field("node_hash", &"Unresolved"),
+        };
+        match &self.data {
+            NodeKind::Empty => debug.field("node_type", &Empty),
+            NodeKind::Leaf(leaf) => debug
+                .field("node_type", &Leaf)
+                .field("node_key", &leaf.node_key)
+                .field(
+                    "node_key_preimage",
+                    &leaf.node_key_preimage.map(hex::encode),
+                )
+                .field(
+                    "value_preimages",
+                    &leaf
+                        .value_preimages
+                        .iter()
+                        .map(hex::encode)
+                        .collect::<Vec<_>>(),
+                )
+                .field("compress_flags", &leaf.compress_flags)
+                .field("value_hash", &leaf.value_hash),
+            NodeKind::Branch(branch) => debug
+                .field("node_type", &branch.node_type)
+                .field("child_left", &branch.child_left)
+                .field("child_right", &branch.child_right),
+        };
+
+        debug.finish()
     }
 }
 

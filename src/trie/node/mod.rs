@@ -51,7 +51,7 @@ pub struct LazyBranchHash {
 }
 
 /// A lazy hash wrapper may be resolved later.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum LazyNodeHash {
     /// A node hash that is already calculated.
     Hash(ZkHash),
@@ -90,7 +90,7 @@ pub struct BranchNode {
 }
 
 /// Three kinds of nodes in the merkle tree.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum NodeKind {
     /// An empty node.
     Empty,
@@ -107,7 +107,7 @@ pub enum NodeKind {
 /// The `node_hash` is computed by [`HashScheme::hash`]:
 /// - For `Leaf` node, it's computed by the hash of `Leaf` type and `[node_key, value_hash]`.
 /// - For `Branch` node, it's computed by the hash of `Branch` type and `[child_left, child_right]`.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Node<H> {
     /// nodeHash is the cache of the hash of the node to avoid recalculating
     pub(crate) node_hash: Arc<OnceCell<ZkHash>>,

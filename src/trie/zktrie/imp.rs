@@ -17,6 +17,8 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug for ZkTrie<H, Db, K> 
         f.debug_struct("ZkTrie")
             .field("MAX_LEVEL", &H::TRIE_MAX_LEVELS)
             .field("hash_scheme", &std::any::type_name::<H>())
+            .field("db", &self.db)
+            .field("key_hasher", &self.key_hasher)
             .field("root", &self.root)
             .field("is_dirty", &self.is_dirty())
             .finish()
@@ -134,7 +136,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     #[instrument(level = "trace", skip(self, node_hash), ret)]
     pub fn get_node_by_hash(&self, node_hash: impl Into<LazyNodeHash>) -> Result<Node<H>, H, Db> {
         let node_hash = node_hash.into();
-        if node_hash.is_zero() {
+        if node_hash.is_zero().unwrap_or(false) {
             return Ok(Node::<H>::empty());
         }
         trace!(node_hash = ?node_hash);
@@ -435,6 +437,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         }
     }
 
+    #[instrument(level = "trace", skip(self), ret)]
     fn resolve_commit(&mut self, node_hash: LazyNodeHash) -> Result<ZkHash, H, Db> {
         match node_hash {
             LazyNodeHash::Hash(node_hash) => {
