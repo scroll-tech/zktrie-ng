@@ -84,6 +84,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
 
     /// Update the trie with a new key-value pair, which value can be encoded to bytes
     #[inline(always)]
+    #[instrument(level = "trace", skip_all)]
     pub fn update<T: EncodeValueBytes>(&mut self, key: &[u8], value: T) -> Result<(), H, Db> {
         let (values, compression_flags) = value.encode_values_bytes();
         self.raw_update(key, values, compression_flags)
