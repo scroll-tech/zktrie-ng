@@ -45,6 +45,14 @@ jobs:
             --exclude=.github \
           .
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
+
   deploy:
     # Only deploy if a push to main
     # if: github.ref_name == 'master' && github.event_name == 'push'
