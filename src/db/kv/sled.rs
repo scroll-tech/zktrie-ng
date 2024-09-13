@@ -2,7 +2,7 @@
 //!
 //! Different from [`HashMapDb`](crate::db::HashMapDb) and [`BTreeMapDb`](crate::db::BTreeMapDb),
 //! [`SledDb`] is `Clone`, since [`sled::Tree`] is `Clone`.
-//! Same db is shared between different instances of `SledDb`.
+//! Same db is shared between different instances of [`SledDb`].
 //!
 //! ## Example
 //!
@@ -28,7 +28,7 @@
 use super::KVDatabase;
 use sled::Batch;
 
-/// A key-value store backed by `sled`.
+/// A key-value store backed by [`sled`].
 #[derive(Clone, Debug)]
 pub struct SledDb {
     db: sled::Tree,

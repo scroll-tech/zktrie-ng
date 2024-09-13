@@ -1,12 +1,12 @@
-//! KVDatabase in-memory implementation using a [`BTreeMap`].
+//! KVDatabase in-memory implementation using a [`HashMap`](std::collections::HashMap).
 use super::KVDatabase;
 use crate::HashMap;
 use std::convert::Infallible;
 use std::fmt::Debug;
 
-/// A simple in-memory key-value store backed by a `HashMap`.
+/// A simple in-memory key-value store backed by a [`HashMap`](std::collections::HashMap).
 ///
-/// It's intended to be not `Clone`, since [`Clone::clone`] will clone the entire [`HashMapDb`].
+/// It's intended to be not [`Clone`], since [`Clone::clone`] will clone the entire [`HashMapDb`].
 ///
 /// If you need to clone the entire database,
 /// you can use [`HashMapDb::inner`] to get the inner [`HashMapDb`],

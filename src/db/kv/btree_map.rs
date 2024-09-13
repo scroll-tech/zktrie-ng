@@ -4,9 +4,11 @@ use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::fmt::Debug;
 
-/// A simple in-memory key-value store backed by a `BTreeMap`.
+/// A simple in-memory key-value store backed by a [`BTreeMap`].
 ///
-/// It's intended to be not `Clone`, since [`Clone::clone`] will clone the entire [`BTreeMap`].
+/// [`BTreeMap`] could be faster than [`HashMap`](std::collections::HashMap) in small size.
+///
+/// It's intended to be not [`Clone`], since [`Clone::clone`] will clone the entire [`BTreeMap`].
 ///
 /// If you need to clone the entire database,
 /// you can use [`BTreeMapDb::inner`] to get the inner [`BTreeMap`],
