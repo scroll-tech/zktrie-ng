@@ -23,7 +23,7 @@
 //! let db = sled::open("my_db").unwrap();
 //! let tree = db.open_tree("zk_trie").unwrap();
 //!
-//! let mut trie = ZkTrie::new(SledDb::new(tree), NoCacheHasher);
+//! let mut trie = ZkTrie::new(SledDb::new(true, tree), NoCacheHasher);
 //! ```
 use super::KVDatabase;
 use sled::Batch;
@@ -31,13 +31,36 @@ use sled::Batch;
 /// A key-value store backed by [`sled`].
 #[derive(Clone, Debug)]
 pub struct SledDb {
+    gc_enabled: bool,
     db: sled::Tree,
 }
 
 impl SledDb {
     /// Create a new `SledDb` wrapping the given `sled::Tree`.
-    pub fn new(db: sled::Tree) -> Self {
-        Self { db }
+    pub fn new(gc_enabled: bool, db: sled::Tree) -> Self {
+        Self { gc_enabled, db }
+    }
+
+    /// Enable or disable garbage collection.
+    #[inline]
+    pub fn set_gc_enabled(&mut self, gc_enabled: bool) {
+        self.gc_enabled = gc_enabled;
+    }
+
+    /// Check if garbage collection is enabled.
+    #[inline]
+    pub fn is_gc_enabled(&self) -> bool {
+        self.gc_enabled
+    }
+
+    /// Get the inner [`sled::Tree`]
+    pub fn inner(&self) -> &sled::Tree {
+        &self.db
+    }
+
+    /// Into the inner [`sled::Tree`]
+    pub fn into_inner(self) -> sled::Tree {
+        self.db
     }
 }
 
@@ -60,8 +83,16 @@ impl KVDatabase for SledDb {
         self.db.get(k)
     }
 
+    fn gc_enabled(&self) -> bool {
+        self.gc_enabled
+    }
+
     fn remove(&mut self, k: &[u8]) -> Result<(), Self::Error> {
-        self.db.remove(k)?;
+        if self.gc_enabled {
+            self.db.remove(k)?;
+        } else {
+            warn!("garbage collection is disabled, remove is ignored");
+        }
         Ok(())
     }
 

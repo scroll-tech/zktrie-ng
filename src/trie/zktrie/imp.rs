@@ -8,7 +8,7 @@ type Result<T, H, DB> =
 
 impl Default for ZkTrie {
     fn default() -> Self {
-        Self::new(HashMapDb::new(), NoCacheHasher)
+        Self::new(HashMapDb::default(), NoCacheHasher)
     }
 }
 
@@ -17,13 +17,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug for ZkTrie<H, Db, K> 
         f.debug_struct("ZkTrie")
             .field("MAX_LEVEL", &H::TRIE_MAX_LEVELS)
             .field("hash_scheme", &std::any::type_name::<H>())
-            .field("db", &self.db)
-            .field("key_hasher", &self.key_hasher)
             .field("root", &self.root)
             .field("is_dirty", &self.is_dirty())
             .finish()
     }
 }
+
 impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// Create a new zkTrie
     #[inline(always)]
@@ -40,6 +39,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             root: root.into(),
             dirty_branch_nodes: Vec::new(),
             dirty_leafs: HashMap::new(),
+            gc_nodes: HashSet::new(),
             _hash_scheme: std::marker::PhantomData,
         };
 
@@ -128,7 +128,37 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         // clear dirty nodes
         self.dirty_branch_nodes.clear();
         self.dirty_leafs.clear();
+        self.gc_nodes.retain(|node_hash| node_hash.is_resolved());
 
+        Ok(())
+    }
+
+    /// Garbage collect the trie
+    pub fn gc(&mut self) -> Result<(), H, Db> {
+        let is_dirty = self.is_dirty();
+        let mut removed = 0;
+        self.gc_nodes
+            .retain(|node_hash| match node_hash.try_as_hash() {
+                Some(node_hash) => match self.db.remove(node_hash.as_ref()) {
+                    Ok(_) => {
+                        removed += 1;
+                        false
+                    }
+                    Err(e) => {
+                        warn!("Failed to remove node from db: {}", e);
+                        true
+                    }
+                },
+                None => {
+                    if is_dirty {
+                        warn!("Unresolved hash found in gc_nodes, commit before run gc");
+                        true
+                    } else {
+                        false
+                    }
+                }
+            });
+        trace!("garbage collection done, removed {removed} nodes");
         Ok(())
     }
 
@@ -232,6 +262,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     Ok((LazyNodeHash::Hash(new_leaf_node_hash), true))
                 } else if new_leaf_node_key == current_leaf_node_key {
                     self.dirty_leafs.insert(new_leaf_node_hash, leaf);
+                    self.gc_nodes.insert(curr_node_hash.into());
                     Ok((LazyNodeHash::Hash(new_leaf_node_hash), true))
                 } else {
                     Ok((self.push_leaf(n, leaf, level)?, false))
@@ -282,6 +313,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     resolved: new_parent_node.node_hash.clone(),
                 });
 
+                self.gc_nodes.insert(curr_node_hash);
                 self.dirty_branch_nodes.push(new_parent_node);
                 Ok((lazy_hash, false))
             }

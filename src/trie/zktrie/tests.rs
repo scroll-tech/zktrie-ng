@@ -46,23 +46,25 @@ fn test_random() {
 
     let mut keys = Vec::new();
 
-    for _ in 0..10 {
-        let k: [u8; 32] = random();
+    for _ in 0..2 {
+        for _ in 0..10 {
+            let k: [u8; 32] = random();
 
-        let (values, compression_flag) = gen_random_bytes();
-        let old_key = NodeOld::hash_bytes(&k).unwrap();
-        old_trie
-            .try_update(&old_key, compression_flag, values.clone())
-            .unwrap();
+            let (values, compression_flag) = gen_random_bytes();
+            let old_key = NodeOld::hash_bytes(&k).unwrap();
+            old_trie
+                .try_update(&old_key, compression_flag, values.clone())
+                .unwrap();
 
-        trie.raw_update(&k, values, compression_flag).unwrap();
+            trie.raw_update(&k, values, compression_flag).unwrap();
 
-        keys.push((k, old_key));
+            keys.push((k, old_key));
+        }
+
+        old_trie.prepare_root().unwrap();
+        old_trie.commit().unwrap();
+        trie.commit().unwrap();
     }
-
-    old_trie.prepare_root().unwrap();
-    old_trie.commit().unwrap();
-    trie.commit().unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 
@@ -79,6 +81,8 @@ fn test_random() {
     // print_old_trie(&old_trie, old_trie.root().clone(), 0);
     // println!("New:");
     // println!("{}", trie);
+
+    trie.gc().unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 }

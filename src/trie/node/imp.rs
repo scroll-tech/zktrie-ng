@@ -1,6 +1,7 @@
 use super::*;
 use once_cell::sync::Lazy;
 use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 
 impl From<ZkHash> for LazyNodeHash {
     fn from(hash: ZkHash) -> Self {
@@ -60,6 +61,30 @@ impl Debug for LazyNodeHash {
         }
     }
 }
+
+impl Hash for LazyNodeHash {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            LazyNodeHash::Hash(hash) => hash.hash(state),
+            LazyNodeHash::LazyBranch(LazyBranchHash { index, .. }) => {
+                "lazy".hash(state);
+                index.hash(state)
+            }
+        }
+    }
+}
+
+impl PartialEq for LazyNodeHash {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LazyNodeHash::Hash(a), LazyNodeHash::Hash(b)) => a == b,
+            (LazyNodeHash::LazyBranch(a), LazyNodeHash::LazyBranch(b)) => a.index == b.index,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for LazyNodeHash {}
 
 impl LeafNode {
     /// Get the `node_key` stored in a leaf node.

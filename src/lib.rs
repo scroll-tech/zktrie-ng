@@ -53,9 +53,9 @@ pub mod scroll_types;
 pub mod trie;
 
 #[cfg(feature = "hashbrown")]
-pub(crate) use hashbrown::HashMap;
+pub(crate) use hashbrown::{HashMap, HashSet};
 #[cfg(not(feature = "hashbrown"))]
-pub(crate) use std::collections::HashMap;
+pub(crate) use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 #[ctor::ctor]

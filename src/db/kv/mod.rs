@@ -37,6 +37,11 @@ pub trait KVDatabase {
     /// Returns `Ok(None)` if the key is not present.
     fn get(&self, k: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error>;
 
+    /// Check if garbage collection is enabled.
+    fn gc_enabled(&self) -> bool {
+        false
+    }
+
     /// Best-effort removal of a key-value pair from the database, used for garbage collection.
     ///
     /// # Note

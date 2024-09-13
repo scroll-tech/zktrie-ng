@@ -6,7 +6,7 @@ use crate::{
         HashScheme, ZkHash, HASH_SIZE,
     },
     trie::{LazyNodeHash, Node, NodeType, ParseNodeError},
-    HashMap,
+    HashMap, HashSet,
 };
 
 mod imp;
@@ -21,6 +21,7 @@ pub struct ZkTrie<H = Poseidon, Db = HashMapDb, K = NoCacheHasher> {
     root: LazyNodeHash,
     dirty_branch_nodes: Vec<Node<H>>,
     dirty_leafs: HashMap<ZkHash, Node<H>>,
+    gc_nodes: HashSet<LazyNodeHash>,
 
     _hash_scheme: std::marker::PhantomData<H>,
 }
