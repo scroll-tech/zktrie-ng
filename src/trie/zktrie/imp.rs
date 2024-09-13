@@ -429,13 +429,14 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         if level >= H::TRIE_MAX_LEVELS {
             return Err(ZkTrieError::MaxLevelReached);
         }
-        let root = self.get_node_by_hash(root_hash)?;
+        let root = self.get_node_by_hash(root_hash.clone())?;
         match root.node_type() {
             NodeType::Empty => Err(ZkTrieError::NodeNotFound),
             NodeType::Leaf => {
                 if root.as_leaf().unwrap().node_key() != &node_key {
                     Err(ZkTrieError::NodeNotFound)
                 } else {
+                    self.gc_nodes.insert(root_hash);
                     Ok((LazyNodeHash::Hash(ZkHash::ZERO), true))
                 }
             }
@@ -502,6 +503,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     resolved: new_parent.node_hash.clone(),
                 });
 
+                self.gc_nodes.insert(root_hash);
                 self.dirty_branch_nodes.push(new_parent);
 
                 Ok((lazy_hash, false))
