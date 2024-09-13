@@ -63,8 +63,9 @@ impl KVDatabase for HashMapDb {
         Ok(self.db.get(k))
     }
 
-    fn set_gc_enabled(&mut self, gc_enabled: bool) {
+    fn set_gc_enabled(&mut self, gc_enabled: bool) -> bool {
         self.gc_enabled = gc_enabled;
+        gc_enabled
     }
 
     fn gc_enabled(&self) -> bool {

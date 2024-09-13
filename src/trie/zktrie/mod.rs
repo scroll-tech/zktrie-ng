@@ -8,6 +8,7 @@ use crate::{
     trie::{LazyNodeHash, Node, NodeType, ParseNodeError},
     HashMap, HashSet,
 };
+use std::error::Error;
 
 mod imp;
 #[cfg(test)]
@@ -67,4 +68,7 @@ pub enum ZkTrieError<HashErr, DbErr> {
         /// The actual length
         actual: usize,
     },
+    /// Other errors
+    #[error(transparent)]
+    Other(Box<dyn Error>),
 }

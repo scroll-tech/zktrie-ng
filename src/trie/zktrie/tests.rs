@@ -66,7 +66,7 @@ fn test_random() {
         trie.commit().unwrap();
     }
 
-    trie.full_gc().unwrap();
+    trie.full_gc(HashMapDb::default()).unwrap();
 
     for (k, _) in keys.iter() {
         let node_key = <NoCacheHasher as KeyHasher<Poseidon>>::hash(&NoCacheHasher, k).unwrap();
@@ -90,7 +90,7 @@ fn test_random() {
     // println!("New:");
     // println!("{}", trie);
 
-    trie.full_gc().unwrap();
+    trie.full_gc(HashMapDb::default()).unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 }

@@ -167,27 +167,48 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     }
 
     /// Run full garbage collection
-    pub fn full_gc(&mut self) -> Result<(), H, Db> {
+    ///
+    /// If a temporary purge store is provided,
+    /// the trie will be traversed and all node hashes will be set to the temporary store.
+    /// Otherwise, the trie will be traversed and all nodes will be collected into memory.
+    ///
+    /// # Notes
+    ///
+    /// This method will enable the gc support regardless of the current state.
+    ///
+    /// This method will traverse the trie and collect all nodes,
+    /// then remove all nodes that are not in the trie.
+    pub fn full_gc<T: KVDatabase>(&mut self, mut tmp_purge_store: T) -> Result<(), H, Db> {
         if self.is_dirty() {
             warn!("dirty nodes found, commit before run full_gc");
             return Ok(());
         }
         let gc_enabled = self.db.gc_enabled();
-        self.db.set_gc_enabled(true);
+        if !self.db.set_gc_enabled(true) {
+            warn!("backend database does not support garbage collection, skipping");
+            return Ok(());
+        }
 
         // traverse the trie and collect all nodes
-        let mut nodes = HashSet::new();
         for node in self.iter() {
             let node = node?;
-            nodes.insert(
-                *node
-                    .get_or_calculate_node_hash()
-                    .map_err(ZkTrieError::Hash)?,
-            );
+            let node_hash = *node
+                .get_or_calculate_node_hash()
+                .map_err(ZkTrieError::Hash)?;
+            tmp_purge_store
+                .put(node_hash.as_slice(), &[])
+                .map_err(|e| ZkTrieError::Other(Box::new(e)))?;
         }
 
         self.db
-            .retain(|k, _| nodes.contains(k))
+            .retain(|k, _| match tmp_purge_store.get(k) {
+                Ok(Some(_)) => true,
+                Ok(None) => false,
+                Err(e) => {
+                    error!("Failed to check node in purge store: {}", e);
+                    true
+                }
+            })
             .map_err(ZkTrieError::Db)?;
         self.db.set_gc_enabled(gc_enabled);
 
