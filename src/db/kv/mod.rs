@@ -37,18 +37,13 @@ pub trait KVDatabase {
     /// Returns `Ok(None)` if the key is not present.
     fn get(&self, k: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error>;
 
-    /// Enable or disable the garbage collection support.
-    ///
-    /// # Returns
-    ///
-    /// The gc enabled state after the operation.
-    ///
-    /// i.e. If `set_gc_enabled(true)` returns `false`,
-    /// it means the database does not support garbage collection,
-    /// the setting is not changed.
-    fn set_gc_enabled(&mut self, _gc_enabled: bool) -> bool {
+    /// Check if the database supports garbage collection.
+    fn is_gc_supported(&self) -> bool {
         false
     }
+
+    /// Enable or disable the garbage collection support.
+    fn set_gc_enabled(&mut self, _gc_enabled: bool) {}
 
     /// Check if garbage collection is enabled.
     fn gc_enabled(&self) -> bool {

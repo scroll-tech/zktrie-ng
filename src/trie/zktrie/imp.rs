@@ -215,15 +215,16 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// This method will traverse the trie and collect all nodes,
     /// then remove all nodes that are not in the trie.
     pub fn full_gc<T: KVDatabase>(&mut self, mut tmp_purge_store: T) -> Result<(), H, Db> {
+        if !self.db.is_gc_supported() {
+            warn!("backend database does not support garbage collection, skipping");
+            return Ok(());
+        }
         if self.is_dirty() {
             warn!("dirty nodes found, commit before run full_gc");
             return Ok(());
         }
         let gc_enabled = self.db.gc_enabled();
-        if !self.db.set_gc_enabled(true) {
-            warn!("backend database does not support garbage collection, skipping");
-            return Ok(());
-        }
+        self.db.set_gc_enabled(true);
 
         // traverse the trie and collect all nodes
         for node in self.iter() {
