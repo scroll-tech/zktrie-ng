@@ -1,0 +1,10 @@
+[book]
+authors = ["Haichen Shen", "Colin"]
+language = "en"
+multilingual = false
+src = "docs/src"
+title = "zkTrie"
+
+[output.linkcheck]
+optional = true
+follow-web-links = true

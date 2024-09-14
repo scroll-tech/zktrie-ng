@@ -1,6 +1,7 @@
 # zkTrie-ng
 
-[![docs](https://img.shields.io/badge/docs-latest-blue)](https://scroll-tech.github.io/zktrie-ng/zktrie_ng/index.html)
+[![book](https://img.shields.io/badge/book-latest-blue)](https://scroll-tech.github.io/zktrie-ng/index.html)
+[![docs](https://img.shields.io/badge/docs-latest-blue)](https://scroll-tech.github.io/zktrie-ng/docs/zktrie_ng/index.html)
 ![CI Status](https://img.shields.io/github/actions/workflow/status/scroll-tech/zktrie-ng/CI)
 
 Full-featured zkTrie implementation in Rust.
