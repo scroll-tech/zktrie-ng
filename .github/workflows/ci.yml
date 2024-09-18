@@ -1,0 +1,103 @@
+name: CI
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{github.workflow}}-${{github.ref}}
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened, ready_for_review]
+  push:
+    branches:
+      - master
+
+env:
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: git
+
+jobs:
+  skip_check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v5
+        with:
+          cancel_others: 'true'
+          concurrent_skipping: 'same_content_newer'
+          paths_ignore: '["**/README.md"]'
+
+  fmt:
+    needs: [ skip_check ]
+    if: |
+      github.event.pull_request.draft == false &&
+      (github.event.action == 'ready_for_review' || needs.skip_check.outputs.should_skip != 'true')
+    name: Rustfmt
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "nightly-2024-07-07"
+          components: rustfmt
+      - name: Cargo fmt
+        run: cargo fmt --all -- --check
+
+  clippy-stable:
+    needs: [ fmt ]
+    if: |
+      github.event.pull_request.draft == false &&
+      (github.event.action == 'ready_for_review' || needs.skip_check.outputs.should_skip != 'true')
+    name: clippy stable
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.75"
+          components: clippy
+      - name: cargo cache
+        uses: Swatinem/rust-cache@v2
+      - name: clippy
+        run: cargo clippy --all --features sled,scroll -- -D warnings
+
+  clippy-nightly:
+    needs: [ fmt ]
+    if: |
+      github.event.pull_request.draft == false &&
+      (github.event.action == 'ready_for_review' || needs.skip_check.outputs.should_skip != 'true')
+    name: clippy nightly
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "nightly-2024-07-07"
+          components: clippy
+      - name: cargo cache
+        uses: Swatinem/rust-cache@v2
+      - name: clippy
+        run: cargo clippy --all --all-targets --features sled,scroll -- -D warnings
+
+  test:
+    needs: [ clippy-stable, clippy-nightly ]
+    if: |
+      github.event.pull_request.draft == false &&
+      (github.event.action == 'ready_for_review' || needs.skip_check.outputs.should_skip != 'true')
+    name: unit test
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "nightly-2024-07-07"
+          components: clippy
+      - name: cargo cache
+        uses: Swatinem/rust-cache@v2
+      - name: clippy default
+        run: cargo test --all --all-targets --features sled,scroll

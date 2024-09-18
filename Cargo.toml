@@ -2,20 +2,42 @@
 name = "zktrie-ng"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
+
+[package.metadata.docs.rs]
+features = ["sled"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints.rust]
+missing-docs = "deny"
+missing-debug-implementations = "deny"
 
 [dependencies]
 alloy-primitives = "0.8.0"
 hashbrown = { version = "0.14", optional = true }
+hex = "0.4"
 num-derive = "0.4"
+num-traits = "0.2"
+once_cell = "1.19"
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master" }
 sled = { version = "0.34", optional = true }
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1.0"
+tracing = "0.1"
+
+[dependencies.revm-primitives]
+git = "https://github.com/scroll-tech/revm"
+branch = "scroll-evm-executor/v42"
+default-features = false
+features = ["scroll", "scroll-poseidon-codehash"]
+optional = true
+
 
 [dev-dependencies]
 ctor = "0.2"
 rand = "0.8"
-zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features= ["rs_zktrie"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features = ["rs_zktrie"] }
 zktrie_rust = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main" }
 
 [features]
@@ -27,5 +49,14 @@ bn254 = ["poseidon-bn254/bn254"]
 halo2curves_v1 = ["poseidon-bn254/halo2curves_v1"]
 halo2curves_v3 = ["poseidon-bn254/halo2curves_v3"]
 
+scroll = ["dep:revm-primitives"]
+
 sled = ["dep:sled"]
 sled_compression = ["sled", "sled/zstd"]
+
+# MSRV 1.75 patch
+[patch.crates-io]
+alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
+alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0" }
