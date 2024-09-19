@@ -72,7 +72,7 @@ impl KVDatabase for SledDb {
 
     #[inline]
     fn contains_key(&self, k: &[u8]) -> Result<bool, Self::Error> {
-        Ok(self.db.contains_key(k)?)
+        self.db.contains_key(k)
     }
 
     #[inline]
