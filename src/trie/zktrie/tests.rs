@@ -26,7 +26,7 @@ fn test_simple() {
     old_trie.try_update(&old_key, 1, v.clone()).unwrap();
     old_trie.prepare_root().unwrap();
 
-    trie.raw_update(&k, v.clone(), 1).unwrap();
+    trie.raw_update(k, v.clone(), 1).unwrap();
     trie.commit().unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
@@ -56,7 +56,7 @@ fn test_random() {
                 .try_update(&old_key, compression_flag, values.clone())
                 .unwrap();
 
-            trie.raw_update(&k, values, compression_flag).unwrap();
+            trie.raw_update(k, values, compression_flag).unwrap();
 
             keys.push((k, old_key));
         }
@@ -95,7 +95,7 @@ fn test_random() {
             .iter()
             .map(|n| n.value())
             .collect::<Vec<Vec<u8>>>();
-        let mut new_proof = trie.prove(&k).unwrap();
+        let mut new_proof = trie.prove(k).unwrap();
         new_proof.pop(); // pop the magic bytes
 
         assert_eq!(old_proof, new_proof);

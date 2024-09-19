@@ -121,7 +121,7 @@ impl EncodeValueBytes for U256 {
 
 impl DecodeValueBytes for U256 {
     fn decode_values_bytes(values: &[[u8; 32]]) -> Option<Self> {
-        values.get(0).map(|v| U256::from_be_bytes(*v))
+        values.first().map(|v| U256::from_be_bytes(*v))
     }
 }
 
@@ -145,9 +145,9 @@ mod tests {
 
         let trie_account = Account::from_revm_account_with_storage_root(account, storage_root);
 
-        trie.update(address.as_ref(), trie_account).unwrap();
+        trie.update(address, trie_account).unwrap();
 
-        let account: Account = trie.get(address.as_ref()).unwrap();
+        let account = trie.get::<Account, _>(address).unwrap().unwrap();
 
         assert_eq!(trie_account, account);
     }
