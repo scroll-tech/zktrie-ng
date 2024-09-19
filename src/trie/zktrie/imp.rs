@@ -127,8 +127,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// - `Ok(true)` if the key is found and deleted
     /// - `Ok(false)` if the key is not found
     /// - `Err(e)` if other error occurs
-    pub fn delete(&mut self, key: &[u8]) -> Result<bool, H, Db> {
+    #[instrument(level = "trace", skip_all)]
+    pub fn delete<KEY: AsRef<[u8]>>(&mut self, key: KEY) -> Result<bool, H, Db> {
+        let key = key.as_ref();
+        trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
+        trace!(node_key = ?node_key);
         match self.delete_node(self.root.clone(), node_key, 0) {
             Ok((new_root, _)) => {
                 self.root = new_root;
@@ -166,8 +170,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     ///
     /// If the trie contain a non-empty leaf for key, the returned proof contains all
     /// nodes on the path to the leaf node, ending with the leaf node.
-    pub fn prove(&self, key: &[u8]) -> Result<Vec<Vec<u8>>, H, Db> {
+    #[instrument(level = "trace", skip_all)]
+    pub fn prove<KEY: AsRef<[u8]>>(&self, key: KEY) -> Result<Vec<Vec<u8>>, H, Db> {
+        let key = key.as_ref();
+        trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
+        trace!(node_key = ?node_key);
 
         let mut next_hash = self.root.clone();
         let mut proof = Vec::with_capacity(H::TRIE_MAX_LEVELS + 1);
