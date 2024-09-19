@@ -90,3 +90,22 @@ fn test_branch_node() {
     );
     assert_eq!(node.canonical_value(false), expected.canonical_value());
 }
+
+#[test]
+fn test_parse_node() {
+    let node_hash =
+        hex::decode("24bae2eed47e458247d74b2b18dea76b9870a6f97fc66ced0173003082afdd36").unwrap();
+    let node_bytes = hex::decode("04247aa484d0a3c2ca12e8ecbe1c1cd6311a82dbdc62e05fbfe0ae6438e02dd9db01010000000000000000000000000000000000000000000000000000000000000005bda820944702ae7610eeed8ed8a4bd20be476f4411088f0672704dbfe6e1def9c88c29").unwrap();
+
+    let node = Node::<Poseidon>::try_from(node_bytes.as_slice()).unwrap();
+    assert_eq!(
+        node.get_or_calculate_node_hash().unwrap(),
+        node_hash.as_slice()
+    );
+    let expected = OldNode::new_node_from_bytes(&node_bytes)
+        .unwrap()
+        .calc_node_hash()
+        .unwrap();
+    assert_eq!(expected.node_hash().unwrap().as_ref(), node_hash.as_slice());
+    assert_eq!(node.canonical_value(false), expected.canonical_value());
+}

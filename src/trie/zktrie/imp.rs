@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::trie::{DecodeValueBytes, EncodeValueBytes, LazyBranchHash};
+use crate::trie::{DecodeValueBytes, EncodeValueBytes, LazyBranchHash, MAGIC_NODE_BYTES};
 use std::fmt::{Debug, Formatter};
 
 type Result<T, H, DB> =
@@ -61,24 +61,30 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     }
 
     /// Get a value from the trie, which can be decoded from bytes
-    pub fn get<const LEN: usize, T: DecodeValueBytes<LEN>>(&self, key: &[u8]) -> Result<T, H, Db> {
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(value))` if the key is found
+    /// - `Ok(None)` if the key is not found
+    /// - `Err(e)` if other error occurs
+    #[instrument(level = "trace", skip_all)]
+    pub fn get<T: DecodeValueBytes, KEY: AsRef<[u8]>>(&self, key: KEY) -> Result<Option<T>, H, Db> {
+        let key = key.as_ref();
+        trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
+        trace!(node_key = ?node_key);
         let node = self.get_node_by_key(&node_key)?;
         match node.node_type() {
-            NodeType::Empty => Err(ZkTrieError::NodeNotFound),
+            NodeType::Empty => Ok(None),
             NodeType::Leaf => {
                 let leaf = node.into_leaf().unwrap();
                 let values = leaf.into_value_preimages();
-                let values: &[[u8; 32]; LEN] =
-                    values
-                        .as_ref()
-                        .try_into()
-                        .map_err(|_| ZkTrieError::UnexpectValueLength {
-                            expected: LEN,
-                            actual: values.len(),
-                        })?;
 
-                Ok(T::decode_values_bytes(values))
+                if let Some(t) = T::decode_values_bytes(values.as_ref()) {
+                    Ok(Some(t))
+                } else {
+                    Err(ZkTrieError::UnexpectValue)
+                }
             }
             _ => Err(ZkTrieError::ExpectLeafNode),
         }
@@ -87,19 +93,24 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// Update the trie with a new key-value pair, which value can be encoded to bytes
     #[inline(always)]
     #[instrument(level = "trace", skip_all)]
-    pub fn update<T: EncodeValueBytes>(&mut self, key: &[u8], value: T) -> Result<(), H, Db> {
+    pub fn update<T: EncodeValueBytes, KEY: AsRef<[u8]>>(
+        &mut self,
+        key: KEY,
+        value: T,
+    ) -> Result<(), H, Db> {
         let (values, compression_flags) = value.encode_values_bytes();
         self.raw_update(key, values, compression_flags)
     }
 
     /// Update the trie with a new key-values pair
     #[instrument(level = "trace", skip_all)]
-    pub fn raw_update(
+    pub fn raw_update<KEY: AsRef<[u8]>>(
         &mut self,
-        key: &[u8],
+        key: KEY,
         value_preimages: Vec<[u8; 32]>,
         compression_flags: u32,
     ) -> Result<(), H, Db> {
+        let key = key.as_ref();
         trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
         trace!(node_key = ?node_key);
@@ -110,10 +121,26 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     }
 
     /// Delete a key from the trie
-    pub fn delete(&mut self, key: &[u8]) -> Result<(), H, Db> {
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(true)` if the key is found and deleted
+    /// - `Ok(false)` if the key is not found
+    /// - `Err(e)` if other error occurs
+    #[instrument(level = "trace", skip_all)]
+    pub fn delete<KEY: AsRef<[u8]>>(&mut self, key: KEY) -> Result<bool, H, Db> {
+        let key = key.as_ref();
+        trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
-        self.root = self.delete_node(self.root.clone(), node_key, 0)?.0;
-        Ok(())
+        trace!(node_key = ?node_key);
+        match self.delete_node(self.root.clone(), node_key, 0) {
+            Ok((new_root, _)) => {
+                self.root = new_root;
+                Ok(true)
+            }
+            Err(ZkTrieError::NodeNotFound) => Ok(false),
+            Err(e) => Err(e),
+        }
     }
 
     /// Commit changes of the trie to the database
@@ -143,10 +170,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     ///
     /// If the trie contain a non-empty leaf for key, the returned proof contains all
     /// nodes on the path to the leaf node, ending with the leaf node.
-    pub fn prove(&self, key: &[u8]) -> Result<Vec<Vec<u8>>, H, Db> {
-        const MAGIC_BYTES: &[u8] = b"THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI";
-
+    #[instrument(level = "trace", skip_all)]
+    pub fn prove<KEY: AsRef<[u8]>>(&self, key: KEY) -> Result<Vec<Vec<u8>>, H, Db> {
+        let key = key.as_ref();
+        trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
+        trace!(node_key = ?node_key);
 
         let mut next_hash = self.root.clone();
         let mut proof = Vec::with_capacity(H::TRIE_MAX_LEVELS + 1);
@@ -165,7 +194,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 }
             }
         }
-        proof.push(MAGIC_BYTES.to_vec());
+        proof.push(MAGIC_NODE_BYTES.to_vec());
         Ok(proof)
     }
 
@@ -276,7 +305,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 } else {
                     let node = self
                         .db
-                        .get(node_hash.as_ref())
+                        .get(node_hash)
                         .map_err(ZkTrieError::Db)?
                         .map(|bytes| Node::try_from(bytes.as_ref()))
                         .ok_or(ZkTrieError::NodeNotFound)??;
@@ -304,11 +333,14 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 NodeType::Empty => return Ok(Node::<H>::empty()),
                 NodeType::Leaf => {
                     let leaf = n.as_leaf().unwrap();
-                    if leaf.node_key() == node_key {
-                        return Ok(n);
+                    return if leaf.node_key() == node_key {
+                        Ok(n)
+                    } else if i != H::TRIE_MAX_LEVELS - 1 {
+                        // the node is compressed, we just reached another leaf node
+                        Ok(Node::<H>::empty())
                     } else {
-                        return Err(ZkTrieError::NodeNotFound);
-                    }
+                        Err(ZkTrieError::NodeNotFound)
+                    };
                 }
                 _ => {
                     let branch = n.into_branch().unwrap();
@@ -577,7 +609,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     self.db
                         .put_owned(
                             node_hash.to_vec().into_boxed_slice(),
-                            node.canonical_value(false).into_boxed_slice(),
+                            node.canonical_value(false),
                         )
                         .map_err(ZkTrieError::Db)?;
                 }
@@ -594,7 +626,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 self.db
                     .put_owned(
                         node_hash.to_vec().into_boxed_slice(),
-                        node.canonical_value(false).into_boxed_slice(),
+                        node.canonical_value(false),
                     )
                     .map_err(ZkTrieError::Db)?;
                 Ok(node_hash)

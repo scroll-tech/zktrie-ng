@@ -13,13 +13,14 @@ pub trait EncodeValueBytes {
 }
 
 /// A trait for types that can be decoded from value bytes.
-pub trait DecodeValueBytes<const LEN: usize> {
+pub trait DecodeValueBytes: Sized {
     /// Decode the values from bytes.
-    fn decode_values_bytes(values: &[[u8; 32]; LEN]) -> Self;
+    fn decode_values_bytes(values: &[[u8; 32]]) -> Option<Self>;
 }
 
-impl<const LEN: usize> DecodeValueBytes<LEN> for [[u8; 32]; LEN] {
-    fn decode_values_bytes(values: &[[u8; 32]; LEN]) -> Self {
-        *values
+impl<const LEN: usize> DecodeValueBytes for [[u8; 32]; LEN] {
+    fn decode_values_bytes(values: &[[u8; 32]]) -> Option<Self> {
+        let values: &[[u8; 32]; LEN] = values.try_into().ok()?;
+        Some(*values)
     }
 }

@@ -61,14 +61,9 @@ pub enum ZkTrieError<HashErr, DbErr> {
     #[error("Expect a leaf node but got others")]
     ExpectLeafNode,
     /// Unexpect value length
-    #[error("Unexpect value length: expected {expected}, actual {actual}")]
-    UnexpectValueLength {
-        /// The expected length
-        expected: usize,
-        /// The actual length
-        actual: usize,
-    },
+    #[error("Unexpect value, cannot decode")]
+    UnexpectValue,
     /// Other errors
     #[error(transparent)]
-    Other(Box<dyn Error>),
+    Other(Box<dyn Error + Send + Sync>),
 }

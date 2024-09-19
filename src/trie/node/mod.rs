@@ -11,6 +11,9 @@ mod imp;
 #[cfg(test)]
 mod tests;
 
+/// The magic bytes for the zkTrie node proof.
+pub const MAGIC_NODE_BYTES: &[u8] = b"THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI";
+
 /// NodeType is the type of node in the merkle tree.
 ///
 /// Note there are some legacy types are not used anymore:

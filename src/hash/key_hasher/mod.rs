@@ -19,7 +19,7 @@ pub enum KeyHasherError<HashErr> {
     Hash(HashErr),
     /// Other Error
     #[error(transparent)]
-    Other(Box<dyn Error>),
+    Other(Box<dyn Error + Send + Sync>),
 }
 
 /// Hasher for keys.

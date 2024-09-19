@@ -66,16 +66,17 @@ impl EncodeValueBytes for Account {
     }
 }
 
-impl DecodeValueBytes<5> for Account {
-    fn decode_values_bytes(values: &[[u8; 32]; 5]) -> Self {
-        Account {
+impl DecodeValueBytes for Account {
+    fn decode_values_bytes(values: &[[u8; 32]]) -> Option<Self> {
+        let values: &[[u8; 32]; 5] = values.try_into().ok()?;
+        Some(Account {
             nonce: u64::from_be_bytes(values[0][24..].try_into().unwrap()),
             code_size: u64::from_be_bytes(values[0][16..24].try_into().unwrap()),
             balance: U256::from_be_bytes(values[1]),
             storage_root: B256::from(values[2]),
             code_hash: B256::from(values[3]),
             poseidon_code_hash: B256::from(values[4]),
-        }
+        })
     }
 }
 
@@ -106,15 +107,21 @@ impl From<Account> for AccountInfo {
     }
 }
 
-impl EncodeValueBytes for U256 {
+impl EncodeValueBytes for &U256 {
     fn encode_values_bytes(&self) -> (Vec<[u8; 32]>, u32) {
         (vec![self.to_be_bytes()], 1)
     }
 }
 
-impl DecodeValueBytes<1> for U256 {
-    fn decode_values_bytes(values: &[[u8; 32]; 1]) -> Self {
-        U256::from_be_bytes(values[0])
+impl EncodeValueBytes for U256 {
+    fn encode_values_bytes(&self) -> (Vec<[u8; 32]>, u32) {
+        (&self).encode_values_bytes()
+    }
+}
+
+impl DecodeValueBytes for U256 {
+    fn decode_values_bytes(values: &[[u8; 32]]) -> Option<Self> {
+        values.get(0).map(|v| U256::from_be_bytes(*v))
     }
 }
 
