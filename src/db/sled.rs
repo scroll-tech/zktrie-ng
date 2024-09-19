@@ -25,8 +25,11 @@
 //!
 //! let mut trie = ZkTrie::new(SledDb::new(true, tree), NoCacheHasher);
 //! ```
+
 use super::KVDatabase;
-use sled::Batch;
+use crate::db::KVDatabaseItem;
+use alloy_primitives::bytes::Bytes;
+use sled::{Batch, IVec};
 
 /// A key-value store backed by [`sled`].
 #[derive(Clone, Debug)]
@@ -52,37 +55,61 @@ impl SledDb {
     }
 }
 
+impl KVDatabaseItem for IVec {
+    fn from_slice(value: &[u8]) -> Self {
+        IVec::from(value)
+    }
+
+    fn into_bytes(self) -> Bytes {
+        Bytes::from(self.to_vec())
+    }
+}
+
 impl KVDatabase for SledDb {
+    type Item = IVec;
+
     type Error = sled::Error;
 
-    fn put(&mut self, k: &[u8], v: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error> {
+    #[inline]
+    fn contains_key(&self, k: &[u8]) -> Result<bool, Self::Error> {
+        Ok(self.db.contains_key(k)?)
+    }
+
+    #[inline]
+    fn put(&mut self, k: &[u8], v: &[u8]) -> Result<Option<Self::Item>, Self::Error> {
         self.db.insert(k, v)
     }
 
-    fn put_owned(
+    #[inline]
+    fn put_owned<K: AsRef<[u8]> + Into<Box<[u8]>>>(
         &mut self,
-        k: Box<[u8]>,
-        v: Box<[u8]>,
-    ) -> Result<Option<impl AsRef<[u8]>>, Self::Error> {
-        self.db.insert(k, v)
+        k: K,
+        v: impl Into<Self::Item>,
+    ) -> Result<Option<Self::Item>, Self::Error> {
+        self.db.insert(k.as_ref(), v)
     }
 
-    fn get(&self, k: &[u8]) -> Result<Option<impl AsRef<[u8]>>, Self::Error> {
+    #[inline]
+    fn get<K: AsRef<[u8]> + Clone>(&self, k: K) -> Result<Option<Self::Item>, Self::Error> {
         self.db.get(k)
     }
 
+    #[inline]
     fn is_gc_supported(&self) -> bool {
         true
     }
 
+    #[inline]
     fn set_gc_enabled(&mut self, gc_enabled: bool) {
         self.gc_enabled = gc_enabled;
     }
 
+    #[inline]
     fn gc_enabled(&self) -> bool {
         self.gc_enabled
     }
 
+    #[inline]
     fn remove(&mut self, k: &[u8]) -> Result<(), Self::Error> {
         if self.gc_enabled {
             self.db.remove(k)?;
@@ -92,6 +119,7 @@ impl KVDatabase for SledDb {
         Ok(())
     }
 
+    #[inline]
     fn retain<F>(&mut self, mut f: F) -> Result<(), Self::Error>
     where
         F: FnMut(&[u8], &[u8]) -> bool,
@@ -109,7 +137,8 @@ impl KVDatabase for SledDb {
         self.db.apply_batch(batch)
     }
 
-    fn extend<T: IntoIterator<Item = (Box<[u8]>, Box<[u8]>)>>(
+    #[inline]
+    fn extend<T: IntoIterator<Item = (Box<[u8]>, Self::Item)>>(
         &mut self,
         other: T,
     ) -> Result<(), Self::Error> {
