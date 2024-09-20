@@ -32,13 +32,21 @@ default-features = false
 features = ["scroll", "scroll-poseidon-codehash"]
 optional = true
 
-
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 ctor = "0.2"
-rand = "0.8"
+rand = { version = "0.8", features = ["small_rng"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 zktrie = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main", features = ["rs_zktrie"] }
 zktrie_rust = { git = "https://github.com/scroll-tech/zktrie.git", branch = "main" }
+
+[[bench]]
+name = "node"
+harness = false
+
+[[bench]]
+name = "trie"
+harness = false
 
 [features]
 default = ["bn254", "hashbrown"]

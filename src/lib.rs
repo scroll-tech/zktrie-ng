@@ -26,7 +26,7 @@
 //!
 //! trie.raw_update(&[1u8; 32], vec![[1u8; 32]], 1).unwrap();
 //!
-//! let values: [[u8; 32]; 1] = trie.get(&[1u8; 32]).unwrap();
+//! let values: [[u8; 32]; 1] = trie.get(&[1u8; 32]).unwrap().unwrap();
 //! assert_eq!(values[0], [1u8; 32]);
 //!
 //! // zkTrie is lazy, won't update the backend database until `commit` is called.

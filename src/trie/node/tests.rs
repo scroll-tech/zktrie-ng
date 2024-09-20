@@ -38,7 +38,7 @@ fn test_leaf_node() {
     .unwrap();
 
     assert_eq!(
-        unsafe { node.get_node_hash_unchecked() },
+        node.get_or_calculate_node_hash().unwrap(),
         node_hash.as_ref()
     );
     assert_eq!(node.canonical_value(false), expected.canonical_value());
@@ -61,7 +61,7 @@ fn test_leaf_node() {
     .unwrap();
 
     assert_eq!(
-        unsafe { node.get_node_hash_unchecked() },
+        node.get_or_calculate_node_hash().unwrap(),
         node_hash.as_ref()
     );
     assert_eq!(node.canonical_value(false), expected.canonical_value());
