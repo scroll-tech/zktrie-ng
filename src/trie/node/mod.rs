@@ -78,7 +78,7 @@ pub struct LeafNode {
     /// use each bit for indicating the compressed flag for the first 24 fields
     compress_flags: u32,
     /// The hash of `value_preimages`.
-    value_hash: ZkHash,
+    value_hash: Arc<OnceCell<ZkHash>>,
 }
 
 /// A node could have two children.

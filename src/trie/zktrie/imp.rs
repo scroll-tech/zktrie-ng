@@ -48,6 +48,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         Ok(this)
     }
 
+    /// Get the underlying database
+    #[inline(always)]
+    pub fn db(&self) -> &Db {
+        &self.db
+    }
+
     /// Check if the trie is dirty
     #[inline(always)]
     pub fn is_dirty(&self) -> bool {
@@ -128,11 +134,21 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// - `Ok(false)` if the key is not found
     /// - `Err(e)` if other error occurs
     #[instrument(level = "trace", skip_all)]
+    #[inline]
     pub fn delete<KEY: AsRef<[u8]>>(&mut self, key: KEY) -> Result<bool, H, Db> {
         let key = key.as_ref();
         trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
         trace!(node_key = ?node_key);
+        self.delete_by_node_key(node_key)
+    }
+
+    /// Delete a key from the trie by node key
+    ///
+    /// # See also
+    ///
+    /// [`delete`](ZkTrie::delete)
+    pub fn delete_by_node_key(&mut self, node_key: ZkHash) -> Result<bool, H, Db> {
         match self.delete_node(self.root.clone(), node_key, 0) {
             Ok((new_root, _)) => {
                 self.root = new_root;
@@ -343,7 +359,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     };
                 }
                 _ => {
-                    let branch = n.into_branch().unwrap();
+                    let branch = n.as_branch().unwrap();
                     if get_path(node_key, i) {
                         next_hash = branch.child_right().clone();
                     } else {

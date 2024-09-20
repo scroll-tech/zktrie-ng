@@ -120,8 +120,9 @@ impl LeafNode {
 
     /// Get the `value_hash`
     #[inline]
-    pub fn value_hash<H: HashScheme>(&self) -> &ZkHash {
-        &self.value_hash
+    pub fn get_or_calc_value_hash<H: HashScheme>(&self) -> Result<&ZkHash, H::Error> {
+        self.value_hash
+            .get_or_try_init(|| H::hash_bytes_array(&self.value_preimages, self.compress_flags))
     }
 }
 
@@ -219,16 +220,16 @@ impl<H: HashScheme> Node<H> {
         compress_flags: u32,
         node_key_preimage: Option<[u8; 32]>,
     ) -> Result<Self, H::Error> {
-        let value_hash = H::hash_bytes_array(&value_preimages, compress_flags)?;
-        let node_hash = H::hash(Leaf as u64, [node_key, value_hash])?;
+        // let value_hash = H::hash_bytes_array(&value_preimages, compress_flags)?;
+        // let node_hash = H::hash(Leaf as u64, [node_key, value_hash])?;
         Ok(Node {
-            node_hash: Arc::new(OnceCell::with_value(node_hash)),
+            node_hash: Arc::new(OnceCell::new()),
             data: NodeKind::Leaf(LeafNode {
                 node_key,
                 node_key_preimage,
                 value_preimages: Arc::from(value_preimages.into_boxed_slice()),
                 compress_flags,
-                value_hash,
+                value_hash: Arc::new(OnceCell::new()),
             }),
             _hash_scheme: std::marker::PhantomData,
         })
@@ -244,7 +245,13 @@ impl<H: HashScheme> Node<H> {
     #[inline]
     pub fn get_or_calculate_node_hash(&self) -> Result<&ZkHash, H::Error> {
         match self.data {
-            NodeKind::Empty | NodeKind::Leaf(_) => Ok(unsafe { self.node_hash.get_unchecked() }),
+            NodeKind::Empty => Ok(unsafe { self.node_hash.get_unchecked() }),
+            NodeKind::Leaf(ref leaf) => {
+                let value_hash = leaf.get_or_calc_value_hash::<H>()?;
+                Ok(self
+                    .node_hash
+                    .get_or_try_init(|| H::hash(Leaf as u64, [leaf.node_key, *value_hash]))?)
+            }
             NodeKind::Branch(ref branch) => {
                 let left = branch.child_left.unwrap_ref();
                 let right = branch.child_right.unwrap_ref();
