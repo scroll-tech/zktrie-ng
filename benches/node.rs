@@ -22,7 +22,7 @@ fn bench_parse_node_inner(c: &mut Criterion, name: &str, node_bytes: Vec<u8>) {
     });
     group.bench_with_input("zktrie", &node_bytes, |b, node_bytes| {
         b.iter(|| {
-            OldNode::new_node_from_bytes(&node_bytes)
+            OldNode::new_node_from_bytes(node_bytes)
                 .unwrap()
                 .calc_node_hash()
                 .unwrap()
