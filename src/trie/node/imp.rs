@@ -108,7 +108,7 @@ impl LeafNode {
 
     /// Get the value preimages stored in a leaf node.
     #[inline]
-    pub fn into_value_preimages(self) -> Arc<[[u8; 32]]> {
+    pub fn into_value_preimages(self) -> Box<[[u8; 32]]> {
         self.value_preimages
     }
 
@@ -169,6 +169,12 @@ impl BranchNode {
 
     /// Into the parts
     #[inline]
+    pub fn as_parts(&self) -> (NodeType, &LazyNodeHash, &LazyNodeHash) {
+        (self.node_type, &self.child_left, &self.child_right)
+    }
+
+    /// Into the parts
+    #[inline]
     pub fn into_parts(self) -> (NodeType, LazyNodeHash, LazyNodeHash) {
         (self.node_type, self.child_left, self.child_right)
     }
@@ -204,11 +210,11 @@ impl<H: HashScheme> Node<H> {
     ) -> Self {
         Node {
             node_hash: Arc::new(OnceCell::new()),
-            data: NodeKind::Branch(BranchNode {
+            data: NodeKind::Branch(Arc::new(BranchNode {
                 node_type,
                 child_left: child_left.into(),
                 child_right: child_right.into(),
-            }),
+            })),
             _hash_scheme: std::marker::PhantomData,
         }
     }
@@ -224,13 +230,13 @@ impl<H: HashScheme> Node<H> {
         // let node_hash = H::hash(Leaf as u64, [node_key, value_hash])?;
         Ok(Node {
             node_hash: Arc::new(OnceCell::new()),
-            data: NodeKind::Leaf(LeafNode {
+            data: NodeKind::Leaf(Arc::new(LeafNode {
                 node_key,
                 node_key_preimage,
-                value_preimages: Arc::from(value_preimages.into_boxed_slice()),
+                value_preimages: value_preimages.into_boxed_slice(),
                 compress_flags,
-                value_hash: Arc::new(OnceCell::new()),
-            }),
+                value_hash: OnceCell::new(),
+            })),
             _hash_scheme: std::marker::PhantomData,
         })
     }
@@ -326,7 +332,7 @@ impl<H: HashScheme> Node<H> {
 
     /// Try into a leaf node.
     #[inline]
-    pub fn into_leaf(self) -> Option<LeafNode> {
+    pub fn into_leaf(self) -> Option<Arc<LeafNode>> {
         match self.data {
             NodeKind::Leaf(leaf) => Some(leaf),
             _ => None,
@@ -335,7 +341,7 @@ impl<H: HashScheme> Node<H> {
 
     /// Try into a branch node.
     #[inline]
-    pub fn into_branch(self) -> Option<BranchNode> {
+    pub fn into_branch(self) -> Option<Arc<BranchNode>> {
         match self.data {
             NodeKind::Branch(branch) => Some(branch),
             _ => None,

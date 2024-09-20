@@ -84,9 +84,9 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             NodeType::Empty => Ok(None),
             NodeType::Leaf => {
                 let leaf = node.into_leaf().unwrap();
-                let values = leaf.into_value_preimages();
+                let values = leaf.value_preimages();
 
-                if let Some(t) = T::decode_values_bytes(values.as_ref()) {
+                if let Some(t) = T::decode_values_bytes(values) {
                     Ok(Some(t))
                 } else {
                     Err(ZkTrieError::UnexpectValue)
@@ -201,11 +201,11 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             match n.node_type() {
                 NodeType::Empty | NodeType::Leaf => break,
                 _ => {
-                    let (_, child_left, child_right) = n.into_branch().unwrap().into_parts();
+                    let (_, child_left, child_right) = n.as_branch().unwrap().as_parts();
                     next_hash = if get_path(&node_key, i) {
-                        child_right
+                        child_right.clone()
                     } else {
-                        child_left
+                        child_left.clone()
                     };
                 }
             }
@@ -417,13 +417,13 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             // branch node
             _ => {
                 let (current_node_type, current_node_left_child, current_node_right_child) =
-                    n.into_branch().unwrap().into_parts();
+                    n.as_branch().unwrap().as_parts();
                 let leaf_node_key = leaf.as_leaf().unwrap().node_key();
 
                 let new_parent_node = if get_path(leaf_node_key, level) {
                     // go right
                     let (new_node_hash, is_terminal) =
-                        self.add_leaf(leaf, current_node_right_child, level + 1)?;
+                        self.add_leaf(leaf, current_node_right_child.clone(), level + 1)?;
                     let new_node_type = if !is_terminal {
                         match current_node_type {
                             NodeType::BranchLTRT => NodeType::BranchLTRB,
@@ -435,11 +435,15 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     } else {
                         current_node_type
                     };
-                    Node::new_branch(new_node_type, current_node_left_child, new_node_hash)
+                    Node::new_branch(
+                        new_node_type,
+                        current_node_left_child.clone(),
+                        new_node_hash,
+                    )
                 } else {
                     // go left
                     let (new_node_hash, is_terminal) =
-                        self.add_leaf(leaf, current_node_left_child, level + 1)?;
+                        self.add_leaf(leaf, current_node_left_child.clone(), level + 1)?;
                     let new_node_type = if !is_terminal {
                         match current_node_type {
                             NodeType::BranchLTRT => NodeType::BranchLBRT,
@@ -451,7 +455,11 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     } else {
                         current_node_type
                     };
-                    Node::new_branch(new_node_type, new_node_hash, current_node_right_child)
+                    Node::new_branch(
+                        new_node_type,
+                        new_node_hash,
+                        current_node_right_child.clone(),
+                    )
                 };
 
                 let lazy_hash = LazyNodeHash::LazyBranch(LazyBranchHash {
@@ -548,11 +556,11 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             }
             _ => {
                 let path = get_path(&node_key, level);
-                let (node_type, child_left, child_right) = root.into_branch().unwrap().into_parts();
+                let (node_type, child_left, child_right) = root.as_branch().unwrap().as_parts();
                 let (child_hash, sibling_hash) = if path {
-                    (child_right, child_left)
+                    (child_right.clone(), child_left.clone())
                 } else {
-                    (child_left, child_right)
+                    (child_left.clone(), child_right.clone())
                 };
 
                 let is_sibling_terminal = matches!(

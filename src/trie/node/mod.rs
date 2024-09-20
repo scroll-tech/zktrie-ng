@@ -74,11 +74,11 @@ pub struct LeafNode {
     /// Store at most 256 `[u8; 32]` values as fields (represented by big endian integer),
     /// and the first 24 can be compressed (each 32 bytes consider as 2 fields),
     /// in hashing the compressed elements would be calculated first
-    value_preimages: Arc<[[u8; 32]]>,
+    value_preimages: Box<[[u8; 32]]>,
     /// use each bit for indicating the compressed flag for the first 24 fields
     compress_flags: u32,
     /// The hash of `value_preimages`.
-    value_hash: Arc<OnceCell<ZkHash>>,
+    value_hash: OnceCell<ZkHash>,
 }
 
 /// A node could have two children.
@@ -98,9 +98,9 @@ pub enum NodeKind {
     /// An empty node.
     Empty,
     /// A leaf node.
-    Leaf(LeafNode),
+    Leaf(Arc<LeafNode>),
     /// A branch node.
-    Branch(BranchNode),
+    Branch(Arc<BranchNode>),
 }
 
 /// Node struct represents a node in the merkle tree.
