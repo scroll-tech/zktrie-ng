@@ -388,18 +388,18 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         let n = self.get_node_by_hash(curr_node_hash.clone())?;
         match n.node_type() {
             NodeType::Empty => {
-                // # Safety
-                // leaf node always has a node hash
-                let node_hash = unsafe { *leaf.get_node_hash_unchecked() };
+                let node_hash = *leaf
+                    .get_or_calculate_node_hash()
+                    .map_err(ZkTrieError::Hash)?;
                 self.dirty_leafs.insert(node_hash, leaf);
 
                 Ok((LazyNodeHash::Hash(node_hash), true))
             }
             NodeType::Leaf => {
                 let curr_node_hash = *curr_node_hash.unwrap_ref();
-                // # Safety
-                // leaf node always has a node hash
-                let new_leaf_node_hash = unsafe { *leaf.get_node_hash_unchecked() };
+                let new_leaf_node_hash = *leaf
+                    .get_or_calculate_node_hash()
+                    .map_err(ZkTrieError::Hash)?;
 
                 let new_leaf_node_key = leaf.as_leaf().unwrap().node_key();
                 let current_leaf_node_key = n.as_leaf().unwrap().node_key();
@@ -510,10 +510,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             }
         } else {
             // Diverged, store new leaf
-            // # Safety
-            // leaf node always has a node hash
-            let old_leaf_hash = unsafe { *old_leaf.get_node_hash_unchecked() };
-            let new_leaf_hash = unsafe { *new_leaf.get_node_hash_unchecked() };
+            let old_leaf_hash = *old_leaf
+                .get_or_calculate_node_hash()
+                .map_err(ZkTrieError::Hash)?;
+            let new_leaf_hash = *new_leaf
+                .get_or_calculate_node_hash()
+                .map_err(ZkTrieError::Hash)?;
             self.dirty_leafs.insert(new_leaf_hash, new_leaf);
             // create parent node
             if new_leaf_path {

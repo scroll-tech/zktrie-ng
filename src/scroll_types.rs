@@ -17,9 +17,9 @@
 //!
 //! let trie_account = Account::from_revm_account_with_storage_root(account, storage_root);
 //!
-//! trie.update(address.as_ref(), trie_account).unwrap();
+//! trie.update(address, trie_account).unwrap();
 //!
-//! let account: Account = trie.get(address.as_ref()).unwrap();
+//! let account: Account = trie.get(address).unwrap().unwrap();
 //!
 //! assert_eq!(trie_account, account);
 //! ```
