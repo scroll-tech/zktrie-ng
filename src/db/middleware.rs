@@ -7,6 +7,7 @@ use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
 /// A middleware that records all read items.
+#[derive(Debug)]
 pub struct RecorderMiddleware<Db> {
     inner: Db,
     read_items: Arc<Mutex<HashMap<Vec<u8>, Bytes>>>,

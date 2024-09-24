@@ -54,6 +54,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         &self.db
     }
 
+    /// Get the underlying key hasher
+    #[inline(always)]
+    pub fn key_hasher(&self) -> &K {
+        &self.key_hasher
+    }
+
     /// Check if the trie is dirty
     #[inline(always)]
     pub fn is_dirty(&self) -> bool {
