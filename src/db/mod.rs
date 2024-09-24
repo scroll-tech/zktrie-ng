@@ -12,6 +12,8 @@ pub use btree_map::BTreeMapDb;
 pub mod hash_map;
 pub use hash_map::HashMapDb;
 
+pub mod middleware;
+
 #[cfg(feature = "sled")]
 #[cfg_attr(docsrs, doc(cfg(feature = "sled")))]
 pub mod sled;
