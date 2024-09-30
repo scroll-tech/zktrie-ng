@@ -13,7 +13,7 @@
 //!         key_hasher::NoCacheHasher,
 //!         poseidon::Poseidon,
 //!     },
-//!     db::HashMapDb,
+//!     db::kv::HashMapDb,
 //! };
 //!
 //! // A ZkTrie using Poseidon hash scheme,

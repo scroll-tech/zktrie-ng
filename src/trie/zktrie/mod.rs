@@ -1,5 +1,5 @@
 use crate::{
-    db::{HashMapDb, KVDatabase},
+    db::{kv::HashMapDb, NodeDb},
     hash::{
         key_hasher::{KeyHasher, KeyHasherError, NoCacheHasher},
         poseidon::Poseidon,
@@ -16,7 +16,7 @@ mod tests;
 
 /// A zkTrie implementation.
 pub struct ZkTrie<H = Poseidon, Db = HashMapDb, K = NoCacheHasher> {
-    db: Db,
+    db: NodeDb<Db>,
     key_hasher: K,
 
     root: LazyNodeHash,

@@ -1,4 +1,4 @@
-use crate::db::{HashMapDb, KVDatabase};
+use crate::db::kv::{HashMapDb, KVDatabase};
 use crate::hash::{
     key_hasher::{KeyHasher, KeyHasherError},
     HashScheme, ZkHash,

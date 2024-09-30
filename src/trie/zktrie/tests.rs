@@ -1,4 +1,5 @@
 use super::*;
+use crate::db::kv::KVDatabase;
 use crate::hash::poseidon::tests::gen_random_bytes;
 use rand::random;
 use rand::seq::SliceRandom;
@@ -65,6 +66,7 @@ fn test_random() {
         old_trie.commit().unwrap();
         trie.commit().unwrap();
     }
+    assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 
     // existence proof
     for (k, old_key) in keys.choose_multiple(&mut rand::thread_rng(), 10) {
@@ -77,6 +79,13 @@ fn test_random() {
         let mut new_proof = trie.prove(k).unwrap();
         new_proof.pop(); // pop the magic bytes
 
+        if old_proof != new_proof {
+            for (i, (old, new)) in old_proof.iter().zip(new_proof.iter()).enumerate() {
+                if old != new {
+                    error!("Different at index {i}-th, old: {old:?}, new: {new:?}");
+                }
+            }
+        }
         assert_eq!(old_proof, new_proof);
     }
 
@@ -101,7 +110,7 @@ fn test_random() {
         assert_eq!(old_proof, new_proof);
     }
 
-    trie.full_gc(HashMapDb::default()).unwrap();
+    // trie.full_gc(HashMapDb::default()).unwrap();
 
     for (k, _) in keys.iter() {
         let node_key = <NoCacheHasher as KeyHasher<Poseidon>>::hash(&NoCacheHasher, k).unwrap();
@@ -125,7 +134,7 @@ fn test_random() {
     // println!("New:");
     // println!("{}", trie);
 
-    trie.full_gc(HashMapDb::default()).unwrap();
+    // trie.full_gc(HashMapDb::default()).unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 }
