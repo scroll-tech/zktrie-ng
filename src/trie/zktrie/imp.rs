@@ -224,88 +224,88 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         Ok(proof)
     }
 
-    // /// Garbage collect the trie
-    // pub fn gc(&mut self) -> Result<(), H, Db> {
-    //     if !self.db.gc_enabled() {
-    //         warn!("garbage collection is disabled");
-    //         return Ok(());
-    //     }
-    //     let is_dirty = self.is_dirty();
-    //     let mut removed = 0;
-    //     self.gc_nodes
-    //         .retain(|node_hash| match node_hash.try_as_hash() {
-    //             Some(node_hash) => match self.db.remove(node_hash.as_ref()) {
-    //                 Ok(_) => {
-    //                     removed += 1;
-    //                     false
-    //                 }
-    //                 Err(e) => {
-    //                     warn!("Failed to remove node from db: {}", e);
-    //                     true
-    //                 }
-    //             },
-    //             None => {
-    //                 if is_dirty {
-    //                     warn!("Unresolved hash found in gc_nodes, commit before run gc");
-    //                     true
-    //                 } else {
-    //                     false
-    //                 }
-    //             }
-    //         });
-    //     trace!("garbage collection done, removed {removed} nodes");
-    //     Ok(())
-    // }
-    //
-    // /// Run full garbage collection
-    // ///
-    // /// If a temporary purge store is provided,
-    // /// the trie will be traversed and all node hashes will be set to the temporary store.
-    // /// Otherwise, the trie will be traversed and all nodes will be collected into memory.
-    // ///
-    // /// # Notes
-    // ///
-    // /// This method will enable the gc support regardless of the current state.
-    // ///
-    // /// This method will traverse the trie and collect all nodes,
-    // /// then remove all nodes that are not in the trie.
-    // pub fn full_gc<T: KVDatabase>(&mut self, mut tmp_purge_store: T) -> Result<(), H, Db> {
-    //     if !self.db.is_gc_supported() {
-    //         warn!("backend database does not support garbage collection, skipping");
-    //         return Ok(());
-    //     }
-    //     if self.is_dirty() {
-    //         warn!("dirty nodes found, commit before run full_gc");
-    //         return Ok(());
-    //     }
-    //     let gc_enabled = self.db.gc_enabled();
-    //     self.db.set_gc_enabled(true);
-    //
-    //     // traverse the trie and collect all nodes
-    //     for node in self.iter() {
-    //         let node = node?;
-    //         let node_hash = *node
-    //             .get_or_calculate_node_hash()
-    //             .map_err(ZkTrieError::Hash)?;
-    //         tmp_purge_store
-    //             .put(node_hash.as_slice(), &[])
-    //             .map_err(|e| ZkTrieError::Other(Box::new(e)))?;
-    //     }
-    //
-    //     self.db
-    //         .retain(|k, _| match tmp_purge_store.get(k) {
-    //             Ok(Some(_)) => true,
-    //             Ok(None) => false,
-    //             Err(e) => {
-    //                 error!("Failed to check node in purge store: {}", e);
-    //                 true
-    //             }
-    //         })
-    //         .map_err(ZkTrieError::Db)?;
-    //     self.db.set_gc_enabled(gc_enabled);
-    //
-    //     Ok(())
-    // }
+    /// Garbage collect the trie
+    pub fn gc(&mut self) -> Result<(), H, Db> {
+        if !self.db.gc_enabled() {
+            warn!("garbage collection is disabled");
+            return Ok(());
+        }
+        let is_dirty = self.is_dirty();
+        let mut removed = 0;
+        self.gc_nodes
+            .retain(|node_hash| match node_hash.try_as_hash() {
+                Some(node_hash) => match self.db.remove_node(node_hash) {
+                    Ok(_) => {
+                        removed += 1;
+                        false
+                    }
+                    Err(e) => {
+                        warn!("Failed to remove node from db: {}", e);
+                        true
+                    }
+                },
+                None => {
+                    if is_dirty {
+                        warn!("Unresolved hash found in gc_nodes, commit before run gc");
+                        true
+                    } else {
+                        false
+                    }
+                }
+            });
+        trace!("garbage collection done, removed {removed} nodes");
+        Ok(())
+    }
+
+    /// Run full garbage collection
+    ///
+    /// If a temporary purge store is provided,
+    /// the trie will be traversed and all node hashes will be set to the temporary store.
+    /// Otherwise, the trie will be traversed and all nodes will be collected into memory.
+    ///
+    /// # Notes
+    ///
+    /// This method will enable the gc support regardless of the current state.
+    ///
+    /// This method will traverse the trie and collect all nodes,
+    /// then remove all nodes that are not in the trie.
+    pub fn full_gc<T: KVDatabase>(&mut self, mut tmp_purge_store: T) -> Result<(), H, Db> {
+        if !self.db.is_gc_supported() {
+            warn!("backend database does not support garbage collection, skipping");
+            return Ok(());
+        }
+        if self.is_dirty() {
+            warn!("dirty nodes found, commit before run full_gc");
+            return Ok(());
+        }
+        let gc_enabled = self.db.gc_enabled();
+        self.db.set_gc_enabled(true);
+
+        // traverse the trie and collect all nodes
+        for node in self.iter() {
+            let node = node?;
+            let node_hash = *node
+                .get_or_calculate_node_hash()
+                .map_err(ZkTrieError::Hash)?;
+            tmp_purge_store
+                .put(node_hash.as_slice(), &[])
+                .map_err(|e| ZkTrieError::Other(Box::new(e)))?;
+        }
+
+        self.db
+            .retain(|k| match tmp_purge_store.get(k) {
+                Ok(Some(_)) => true,
+                Ok(None) => false,
+                Err(e) => {
+                    error!("Failed to check node in purge store: {}", e);
+                    true
+                }
+            })
+            .map_err(ZkTrieError::Db)?;
+        self.db.set_gc_enabled(gc_enabled);
+
+        Ok(())
+    }
 
     /// Get an iterator of the trie
     pub fn iter(&self) -> ZkTrieIterator<H, Db, K> {

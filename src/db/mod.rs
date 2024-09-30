@@ -3,7 +3,7 @@
 //! This module provides a trait for databases, as well as some
 //! helper types and functions for working with databases.
 
-use crate::db::kv::KVDatabaseItem;
+use crate::db::kv::{KVDatabase, KVDatabaseItem};
 use crate::hash::{HashScheme, ZkHash};
 use crate::trie::{Node, NodeKind, NodeViewer};
 
@@ -16,10 +16,28 @@ pub struct NodeDb<KvDb> {
     db: KvDb,
 }
 
-impl<KvDb: kv::KVDatabase> NodeDb<KvDb> {
+impl<KvDb: KVDatabase> NodeDb<KvDb> {
     /// Create a new `NodeDb` with the given database.
     pub fn new(db: KvDb) -> Self {
         Self { db }
+    }
+
+    /// Check if the database supports garbage collection.
+    #[inline]
+    pub fn is_gc_supported(&self) -> bool {
+        self.db.is_gc_supported()
+    }
+
+    /// Enable or disable the garbage collection support.
+    #[inline]
+    pub fn set_gc_enabled(&mut self, gc_enabled: bool) {
+        self.db.set_gc_enabled(gc_enabled);
+    }
+
+    /// Check if garbage collection is enabled.
+    #[inline]
+    pub fn gc_enabled(&self) -> bool {
+        self.db.gc_enabled()
     }
 
     /// Put a node into the database.
@@ -41,5 +59,26 @@ impl<KvDb: kv::KVDatabase> NodeDb<KvDb> {
             data: b.into_bytes(),
             node_hash: *hash,
         }))
+    }
+
+    /// Removes a node from the database.
+    ///
+    /// # Note
+    ///
+    /// See also [`KVDatabase::remove`].
+    pub fn remove_node(&mut self, hash: &ZkHash) -> Result<(), KvDb::Error> {
+        self.db.remove(hash.as_ref())
+    }
+
+    /// Retain only the nodes that satisfy the predicate.
+    ///
+    /// # Note
+    ///
+    /// See also [`KVDatabase::retain`].
+    pub fn retain<F>(&mut self, mut f: F) -> Result<(), KvDb::Error>
+    where
+        F: FnMut(&ZkHash) -> bool,
+    {
+        self.db.retain(|k, _| f(&ZkHash::from_slice(k)))
     }
 }
