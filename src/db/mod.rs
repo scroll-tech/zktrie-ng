@@ -6,20 +6,26 @@
 use crate::db::kv::{KVDatabase, KVDatabaseItem};
 use crate::hash::{HashScheme, ZkHash};
 use crate::trie::{Node, NodeKind, NodeViewer};
+use std::fmt::Debug;
 
 /// key-value databases
 pub mod kv;
 
 /// A wrapper to store a trie node in the database.
-#[derive(Debug)]
 pub struct NodeDb<KvDb> {
     db: KvDb,
 }
 
 impl<KvDb: KVDatabase> NodeDb<KvDb> {
     /// Create a new `NodeDb` with the given database.
+    #[inline]
     pub fn new(db: KvDb) -> Self {
         Self { db }
+    }
+
+    /// Into inner db
+    pub fn into_inner(self) -> KvDb {
+        self.db
     }
 
     /// Check if the database supports garbage collection.
@@ -80,5 +86,19 @@ impl<KvDb: KVDatabase> NodeDb<KvDb> {
         F: FnMut(&ZkHash) -> bool,
     {
         self.db.retain(|k, _| f(&ZkHash::from_slice(k)))
+    }
+}
+
+impl<KvDb: Debug> Debug for NodeDb<KvDb> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodeDb").field("db", &self.db).finish()
+    }
+}
+
+impl<KvDb: Clone> Clone for NodeDb<KvDb> {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db.clone(),
+        }
     }
 }

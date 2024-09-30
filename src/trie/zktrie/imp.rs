@@ -12,11 +12,11 @@ type Result<T, H, DB> =
 
 impl Default for ZkTrie {
     fn default() -> Self {
-        Self::new(HashMapDb::default(), NoCacheHasher)
+        Self::new(NoCacheHasher)
     }
 }
 
-impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug for ZkTrie<H, Db, K> {
+impl<H: HashScheme, K: KeyHasher<H>> Debug for ZkTrie<H, K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZkTrie")
             .field("MAX_LEVEL", &H::TRIE_MAX_LEVELS)
@@ -27,18 +27,28 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Debug for ZkTrie<H, Db, K> 
     }
 }
 
-impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
+impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
     /// Create a new zkTrie
     #[inline(always)]
-    pub fn new(db: Db, key_hasher: K) -> Self {
-        Self::new_with_root(db, key_hasher, ZkHash::default()).expect("infallible")
+    pub fn new(key_hasher: K) -> Self {
+        Self {
+            key_hasher,
+            root: ZkHash::default().into(),
+            dirty_branch_nodes: Vec::new(),
+            dirty_leafs: HashMap::new(),
+            gc_nodes: HashSet::new(),
+            _hash_scheme: std::marker::PhantomData,
+        }
     }
 
     /// Create a new zkTrie with a given root hash
     #[inline]
-    pub fn new_with_root(db: Db, key_hasher: K, root: ZkHash) -> Result<Self, H, Db> {
+    pub fn new_with_root<Db: KVDatabase>(
+        db: &NodeDb<Db>,
+        key_hasher: K,
+        root: ZkHash,
+    ) -> Result<Self, H, Db> {
         let this = Self {
-            db: NodeDb::new(db),
             key_hasher,
             root: root.into(),
             dirty_branch_nodes: Vec::new(),
@@ -47,15 +57,9 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             _hash_scheme: std::marker::PhantomData,
         };
 
-        this.get_node_by_hash(root)?;
+        this.get_node_by_hash(db, root)?;
 
         Ok(this)
-    }
-
-    /// Get the underlying database
-    #[inline(always)]
-    pub fn db(&self) -> &NodeDb<Db> {
-        &self.db
     }
 
     /// Get the underlying key hasher
@@ -84,12 +88,16 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// - `Ok(None)` if the key is not found
     /// - `Err(e)` if other error occurs
     #[instrument(level = "trace", skip_all)]
-    pub fn get<T: DecodeValueBytes, KEY: AsRef<[u8]>>(&self, key: KEY) -> Result<Option<T>, H, Db> {
+    pub fn get<Db: KVDatabase, T: DecodeValueBytes, KEY: AsRef<[u8]>>(
+        &self,
+        db: &NodeDb<Db>,
+        key: KEY,
+    ) -> Result<Option<T>, H, Db> {
         let key = key.as_ref();
         trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
         trace!(node_key = ?node_key);
-        let node = self.get_node_by_key(&node_key)?;
+        let node = self.get_node_by_key(db, &node_key)?;
         match node.node_type() {
             NodeType::Empty => Ok(None),
             NodeType::Leaf => {
@@ -109,19 +117,21 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// Update the trie with a new key-value pair, which value can be encoded to bytes
     #[inline(always)]
     #[instrument(level = "trace", skip_all)]
-    pub fn update<T: EncodeValueBytes, KEY: AsRef<[u8]>>(
+    pub fn update<Db: KVDatabase, T: EncodeValueBytes, KEY: AsRef<[u8]>>(
         &mut self,
+        db: &NodeDb<Db>,
         key: KEY,
         value: T,
     ) -> Result<(), H, Db> {
         let (values, compression_flags) = value.encode_values_bytes();
-        self.raw_update(key, values, compression_flags)
+        self.raw_update(db, key, values, compression_flags)
     }
 
     /// Update the trie with a new key-values pair
     #[instrument(level = "trace", skip_all)]
-    pub fn raw_update<KEY: AsRef<[u8]>>(
+    pub fn raw_update<Db: KVDatabase, KEY: AsRef<[u8]>>(
         &mut self,
+        db: &NodeDb<Db>,
         key: KEY,
         value_preimages: Vec<[u8; 32]>,
         compression_flags: u32,
@@ -132,7 +142,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         trace!(node_key = ?node_key);
         let new_leaf = Node::new_leaf(node_key, value_preimages, compression_flags, None)
             .map_err(ZkTrieError::Hash)?;
-        self.root = self.add_leaf(new_leaf, self.root.clone(), 0)?.0;
+        self.root = self.add_leaf(db, new_leaf, self.root.clone(), 0)?.0;
         Ok(())
     }
 
@@ -145,12 +155,16 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// - `Err(e)` if other error occurs
     #[instrument(level = "trace", skip_all)]
     #[inline]
-    pub fn delete<KEY: AsRef<[u8]>>(&mut self, key: KEY) -> Result<bool, H, Db> {
+    pub fn delete<Db: KVDatabase, KEY: AsRef<[u8]>>(
+        &mut self,
+        db: &NodeDb<Db>,
+        key: KEY,
+    ) -> Result<bool, H, Db> {
         let key = key.as_ref();
         trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
         trace!(node_key = ?node_key);
-        self.delete_by_node_key(node_key)
+        self.delete_by_node_key(db, node_key)
     }
 
     /// Delete a key from the trie by node key
@@ -158,8 +172,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// # See also
     ///
     /// [`delete`](ZkTrie::delete)
-    pub fn delete_by_node_key(&mut self, node_key: ZkHash) -> Result<bool, H, Db> {
-        match self.delete_node(self.root.clone(), node_key, 0) {
+    pub fn delete_by_node_key<Db: KVDatabase>(
+        &mut self,
+        db: &NodeDb<Db>,
+        node_key: ZkHash,
+    ) -> Result<bool, H, Db> {
+        match self.delete_node(db, self.root.clone(), node_key, 0) {
             Ok((new_root, _)) => {
                 self.root = new_root;
                 Ok(true)
@@ -170,13 +188,13 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     }
 
     /// Commit changes of the trie to the database
-    pub fn commit(&mut self) -> Result<(), H, Db> {
+    pub fn commit<Db: KVDatabase>(&mut self, db: &mut NodeDb<Db>) -> Result<(), H, Db> {
         if !self.is_dirty() {
             return Ok(());
         }
 
         // resolve all unresolved branch nodes
-        self.root = LazyNodeHash::Hash(self.resolve_commit(self.root.clone())?);
+        self.root = LazyNodeHash::Hash(self.resolve_commit(db, self.root.clone())?);
 
         // clear dirty nodes
         self.dirty_branch_nodes.clear();
@@ -197,7 +215,11 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// If the trie contain a non-empty leaf for key, the returned proof contains all
     /// nodes on the path to the leaf node, ending with the leaf node.
     #[instrument(level = "trace", skip_all)]
-    pub fn prove<KEY: AsRef<[u8]>>(&self, key: KEY) -> Result<Vec<Vec<u8>>, H, Db> {
+    pub fn prove<Db: KVDatabase, KEY: AsRef<[u8]>>(
+        &self,
+        db: &NodeDb<Db>,
+        key: KEY,
+    ) -> Result<Vec<Vec<u8>>, H, Db> {
         let key = key.as_ref();
         trace!(key = hex::encode(key));
         let node_key = self.key_hasher.hash(key)?;
@@ -206,7 +228,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         let mut next_hash = self.root.clone();
         let mut proof = Vec::with_capacity(H::TRIE_MAX_LEVELS + 1);
         for i in 0..H::TRIE_MAX_LEVELS {
-            let n = self.get_node_by_hash(next_hash)?;
+            let n = self.get_node_by_hash(db, next_hash)?;
             proof.push(n.canonical_value(true));
             match n.node_type() {
                 NodeType::Empty | NodeType::Leaf => break,
@@ -225,8 +247,8 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     }
 
     /// Garbage collect the trie
-    pub fn gc(&mut self) -> Result<(), H, Db> {
-        if !self.db.gc_enabled() {
+    pub fn gc<Db: KVDatabase>(&mut self, db: &mut NodeDb<Db>) -> Result<(), H, Db> {
+        if !db.gc_enabled() {
             warn!("garbage collection is disabled");
             return Ok(());
         }
@@ -234,7 +256,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         let mut removed = 0;
         self.gc_nodes
             .retain(|node_hash| match node_hash.try_as_hash() {
-                Some(node_hash) => match self.db.remove_node(node_hash) {
+                Some(node_hash) => match db.remove_node(node_hash) {
                     Ok(_) => {
                         removed += 1;
                         false
@@ -269,8 +291,12 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     ///
     /// This method will traverse the trie and collect all nodes,
     /// then remove all nodes that are not in the trie.
-    pub fn full_gc<T: KVDatabase>(&mut self, mut tmp_purge_store: T) -> Result<(), H, Db> {
-        if !self.db.is_gc_supported() {
+    pub fn full_gc<Db: KVDatabase, T: KVDatabase>(
+        &mut self,
+        db: &mut NodeDb<Db>,
+        mut tmp_purge_store: T,
+    ) -> Result<(), H, Db> {
+        if !db.is_gc_supported() {
             warn!("backend database does not support garbage collection, skipping");
             return Ok(());
         }
@@ -278,11 +304,11 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
             warn!("dirty nodes found, commit before run full_gc");
             return Ok(());
         }
-        let gc_enabled = self.db.gc_enabled();
-        self.db.set_gc_enabled(true);
+        let gc_enabled = db.gc_enabled();
+        db.set_gc_enabled(true);
 
         // traverse the trie and collect all nodes
-        for node in self.iter() {
+        for node in self.iter(db) {
             let node = node?;
             let node_hash = *node
                 .get_or_calculate_node_hash()
@@ -292,32 +318,36 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 .map_err(|e| ZkTrieError::Other(Box::new(e)))?;
         }
 
-        self.db
-            .retain(|k| match tmp_purge_store.get(k) {
-                Ok(Some(_)) => true,
-                Ok(None) => false,
-                Err(e) => {
-                    error!("Failed to check node in purge store: {}", e);
-                    true
-                }
-            })
-            .map_err(ZkTrieError::Db)?;
-        self.db.set_gc_enabled(gc_enabled);
+        db.retain(|k| match tmp_purge_store.get(k) {
+            Ok(Some(_)) => true,
+            Ok(None) => false,
+            Err(e) => {
+                error!("Failed to check node in purge store: {}", e);
+                true
+            }
+        })
+        .map_err(ZkTrieError::Db)?;
+        db.set_gc_enabled(gc_enabled);
 
         Ok(())
     }
 
     /// Get an iterator of the trie
-    pub fn iter(&self) -> ZkTrieIterator<H, Db, K> {
+    pub fn iter<'a, Db: KVDatabase>(&'a self, db: &'a NodeDb<Db>) -> ZkTrieIterator<'a, H, Db, K> {
         ZkTrieIterator {
             trie: self,
+            db,
             stack: vec![self.root.clone()],
         }
     }
 
     /// Get a node from the trie by node hash
-    #[instrument(level = "trace", skip(self, node_hash), ret)]
-    pub fn get_node_by_hash(&self, node_hash: impl Into<LazyNodeHash>) -> Result<INode<H>, H, Db> {
+    #[instrument(level = "trace", skip(self, db, node_hash), ret)]
+    pub fn get_node_by_hash<Db: KVDatabase>(
+        &self,
+        db: &NodeDb<Db>,
+        node_hash: impl Into<LazyNodeHash>,
+    ) -> Result<INode<H>, H, Db> {
         let node_hash = node_hash.into();
         if node_hash.is_zero().unwrap_or(false) {
             return Ok(INode::Owned(Node::<H>::empty()));
@@ -329,8 +359,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     trace!("Found node in dirty leafs");
                     Ok(INode::Owned(node.clone()))
                 } else {
-                    let node_view = self
-                        .db
+                    let node_view = db
                         .get_node::<H>(&node_hash)
                         .map_err(ZkTrieError::Db)?
                         .ok_or(ZkTrieError::NodeNotFound)?;
@@ -347,11 +376,15 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     }
 
     /// Get a node from the trie by node key
-    #[instrument(level = "trace", skip(self, node_key), ret)]
-    pub fn get_node_by_key(&self, node_key: &ZkHash) -> Result<INode<H>, H, Db> {
+    #[instrument(level = "trace", skip(self, db, node_key), ret)]
+    pub fn get_node_by_key<Db: KVDatabase>(
+        &self,
+        db: &NodeDb<Db>,
+        node_key: &ZkHash,
+    ) -> Result<INode<H>, H, Db> {
         let mut next_hash = self.root.clone();
         for i in 0..H::TRIE_MAX_LEVELS {
-            let n = self.get_node_by_hash(next_hash)?;
+            let n = self.get_node_by_hash(db, next_hash)?;
             match n.node_type() {
                 NodeType::Empty => return Ok(INode::Owned(Node::<H>::empty())),
                 NodeType::Leaf => {
@@ -383,8 +416,9 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     /// # Returns
     /// The new added node hash, and a boolean indicating if added node is terminal
     #[instrument(level = "trace", skip_all, ret)]
-    fn add_leaf(
+    fn add_leaf<Db: KVDatabase>(
         &mut self,
+        db: &NodeDb<Db>,
         leaf: Node<H>,
         curr_node_hash: LazyNodeHash,
         level: usize,
@@ -392,7 +426,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         if level >= H::TRIE_MAX_LEVELS {
             return Err(ZkTrieError::MaxLevelReached);
         }
-        let n = self.get_node_by_hash(curr_node_hash.clone())?;
+        let n = self.get_node_by_hash(db, curr_node_hash.clone())?;
         match n.node_type() {
             NodeType::Empty => {
                 let node_hash = *leaf
@@ -418,7 +452,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     self.gc_nodes.insert(curr_node_hash.into());
                     Ok((LazyNodeHash::Hash(new_leaf_node_hash), true))
                 } else {
-                    Ok((self.push_leaf(n, leaf, level)?, false))
+                    Ok((self.push_leaf(db, n, leaf, level)?, false))
                 }
             }
             // branch node
@@ -430,7 +464,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 let new_parent_node = if get_path(leaf_node_key, level) {
                     // go right
                     let (new_node_hash, is_terminal) =
-                        self.add_leaf(leaf, current_node_right_child.clone(), level + 1)?;
+                        self.add_leaf(db, leaf, current_node_right_child.clone(), level + 1)?;
                     let new_node_type = if !is_terminal {
                         match current_node_type {
                             NodeType::BranchLTRT => NodeType::BranchLTRB,
@@ -450,7 +484,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 } else {
                     // go left
                     let (new_node_hash, is_terminal) =
-                        self.add_leaf(leaf, current_node_left_child.clone(), level + 1)?;
+                        self.add_leaf(db, leaf, current_node_left_child.clone(), level + 1)?;
                     let new_node_type = if !is_terminal {
                         match current_node_type {
                             NodeType::BranchLTRT => NodeType::BranchLBRT,
@@ -487,8 +521,9 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
     ///
     /// # Returns
     /// The node of the parent of the old leaf and new leaf
-    fn push_leaf(
+    fn push_leaf<Db: KVDatabase>(
         &mut self,
+        db: &NodeDb<Db>,
         old_leaf: INode<H>,
         new_leaf: Node<H>,
         level: usize,
@@ -505,7 +540,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
 
         let new_parent = if old_leaf_path == new_leaf_path {
             // Need to go deeper
-            let next_parent = self.push_leaf(old_leaf, new_leaf, level + 1)?;
+            let next_parent = self.push_leaf(db, old_leaf, new_leaf, level + 1)?;
             if old_leaf_path {
                 // both leaves are on the right
                 // So, left child is empty, right child is a branch node
@@ -543,8 +578,9 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         Ok(lazy_hash)
     }
 
-    fn delete_node(
+    fn delete_node<Db: KVDatabase>(
         &mut self,
+        db: &NodeDb<Db>,
         root_hash: LazyNodeHash,
         node_key: ZkHash,
         level: usize,
@@ -552,7 +588,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         if level >= H::TRIE_MAX_LEVELS {
             return Err(ZkTrieError::MaxLevelReached);
         }
-        let root = self.get_node_by_hash(root_hash.clone())?;
+        let root = self.get_node_by_hash(db, root_hash.clone())?;
         match root.node_type() {
             NodeType::Empty => Err(ZkTrieError::NodeNotFound),
             NodeType::Leaf => {
@@ -580,7 +616,7 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                 );
 
                 let (new_child_hash, is_new_child_terminal) =
-                    self.delete_node(child_hash, node_key, level + 1)?;
+                    self.delete_node(db, child_hash, node_key, level + 1)?;
 
                 let (left_child, right_child, is_left_terminal, is_right_terminal) = if path {
                     (
@@ -634,24 +670,28 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
         }
     }
 
-    #[instrument(level = "trace", skip(self), ret)]
-    fn resolve_commit(&mut self, node_hash: LazyNodeHash) -> Result<ZkHash, H, Db> {
+    #[instrument(level = "trace", skip(self, db), ret)]
+    fn resolve_commit<Db: KVDatabase>(
+        &mut self,
+        db: &mut NodeDb<Db>,
+        node_hash: LazyNodeHash,
+    ) -> Result<ZkHash, H, Db> {
         match node_hash {
             LazyNodeHash::Hash(node_hash) => {
                 if let Some(node) = self.dirty_leafs.remove(&node_hash) {
-                    self.db.put_node(&node).map_err(ZkTrieError::Db)?;
+                    db.put_node(&node).map_err(ZkTrieError::Db)?;
                 }
                 Ok(node_hash)
             }
-            _ => match self.get_node_by_hash(node_hash)? {
+            _ => match self.get_node_by_hash(db, node_hash)? {
                 INode::Owned(node) => {
                     let branch = node.as_branch().unwrap();
-                    self.resolve_commit(branch.child_left().clone())?;
-                    self.resolve_commit(branch.child_right().clone())?;
+                    self.resolve_commit(db, branch.child_left().clone())?;
+                    self.resolve_commit(db, branch.child_right().clone())?;
                     let node_hash = *node
                         .get_or_calculate_node_hash()
                         .map_err(ZkTrieError::Hash)?;
-                    self.db.put_node(&node).map_err(ZkTrieError::Db)?;
+                    db.put_node(&node).map_err(ZkTrieError::Db)?;
                     Ok(node_hash)
                 }
                 INode::Archived(viewer) => Ok(viewer.node_hash),
@@ -673,7 +713,7 @@ impl<'a, H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Iterator for ZkTrieIter
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(node_hash) = self.stack.pop() {
-            return match self.trie.get_node_by_hash(node_hash) {
+            return match self.trie.get_node_by_hash(self.db, node_hash) {
                 Ok(node) => {
                     if node.is_branch() {
                         let branch = node.as_branch().expect("infalible");

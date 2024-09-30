@@ -592,7 +592,10 @@ impl ArchivedNode {
         match &self.data {
             ArchivedNodeKind::Leaf(leaf) => {
                 let mut bytes = Vec::with_capacity(
-                    1 + HASH_SIZE + size_of::<u32>() + 32 * leaf.value_preimages.len() + 1,
+                    1 + HASH_SIZE
+                        + core::mem::size_of::<u32>()
+                        + 32 * leaf.value_preimages.len()
+                        + 1,
                 );
                 bytes.push(Leaf as u8);
                 bytes.extend_from_slice(leaf.node_key.as_ref());
