@@ -12,6 +12,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 missing-docs = "deny"
 missing-debug-implementations = "deny"
 
+[lints.clippy]
+only-used-in-recursion = "allow"
+
 [dependencies]
 alloy-primitives = { version = "0.8.0", features = ["rkyv"] }
 hashbrown = { version = "0.14", optional = true }

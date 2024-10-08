@@ -1,4 +1,6 @@
 #![allow(missing_debug_implementations)]
+#![allow(clippy::unit_arg)]
+
 use super::*;
 use alloy_primitives::bytes::Bytes;
 use rkyv::{
@@ -616,7 +618,7 @@ impl ArchivedNode {
             }
             ArchivedNodeKind::Branch(branch) => {
                 let mut bytes = Vec::with_capacity(1 + 2 * HASH_SIZE);
-                bytes.push(branch.node_type as u8);
+                bytes.push(branch.node_type);
                 bytes.extend_from_slice(branch.child_left.as_ref());
                 bytes.extend_from_slice(branch.child_right.as_ref());
                 bytes

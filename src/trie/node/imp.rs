@@ -270,14 +270,12 @@ impl<H: HashScheme> Node<H> {
         compress_flags: u32,
         node_key_preimage: Option<[u8; 32]>,
     ) -> Result<Self, H::Error> {
-        // let value_hash = H::hash_bytes_array(&value_preimages, compress_flags)?;
-        // let node_hash = H::hash(Leaf as u64, [node_key, value_hash])?;
         Ok(Node {
             node_hash: Arc::new(OnceCell::new()),
             data: Arc::new(NodeKind::Leaf(LeafNode {
                 node_key,
                 node_key_preimage,
-                value_preimages: value_preimages,
+                value_preimages,
                 compress_flags,
                 value_hash: OnceCell::new(),
             })),
@@ -299,16 +297,15 @@ impl<H: HashScheme> Node<H> {
         }
         if let Some(leaf) = self.data.as_leaf() {
             let value_hash = leaf.get_or_calc_value_hash::<H>()?;
-            return Ok(self
+            return self
                 .node_hash
-                .get_or_try_init(|| H::hash(Leaf as u64, [*leaf.node_key(), value_hash]))?);
+                .get_or_try_init(|| H::hash(Leaf as u64, [*leaf.node_key(), value_hash]));
         }
         let branch = self.data.as_branch().expect("infallible");
         let left = branch.child_left.unwrap_ref();
         let right = branch.child_right.unwrap_ref();
-        Ok(self
-            .node_hash
-            .get_or_try_init(|| H::hash(branch.node_type() as u64, [*left, *right]))?)
+        self.node_hash
+            .get_or_try_init(|| H::hash(branch.node_type() as u64, [*left, *right]))
     }
 
     /// Get the node hash unchecked
