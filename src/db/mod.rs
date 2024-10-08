@@ -70,6 +70,15 @@ impl<KvDb: KVDatabase> NodeDb<KvDb> {
         Ok(())
     }
 
+    /// Put a archived node bytes into the database.
+    pub unsafe fn put_archived_node_unchecked(
+        &mut self,
+        node_hash: ZkHash,
+        bytes: Bytes,
+    ) -> Result<(), KvDb::Error> {
+        self.db.put_owned(node_hash, bytes)
+    }
+
     /// Get a node from the database.
     pub fn get_node<H>(&self, hash: &ZkHash) -> Result<Option<NodeViewer>, KvDb::Error> {
         Ok(self.db.get(hash)?.map(|b| NodeViewer {

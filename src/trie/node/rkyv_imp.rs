@@ -234,8 +234,14 @@ impl ArchivedLeafNode {
     pub fn get_or_calc_value_hash<H: HashScheme>(&self) -> Result<ZkHash, H::Error> {
         match self.value_hash() {
             Some(hash) => Ok(*hash),
-            None => H::hash_bytes_array(self.value_preimages(), self.compress_flags()),
+            None => self.calc_value_hash(),
         }
+    }
+
+    /// Calculate the `value_hash`
+    #[inline]
+    pub fn calc_value_hash<H: HashScheme>(&self) -> Result<ZkHash, H::Error> {
+        H::hash_bytes_array(self.value_preimages(), self.compress_flags())
     }
 }
 
@@ -627,6 +633,22 @@ impl ArchivedNode {
                 vec![Empty as u8]
             }
         }
+    }
+
+    /// Calculate the node hash.
+    pub fn calculate_node_hash<H: HashScheme>(&self) -> Result<ZkHash, H::Error> {
+        if self.data.is_empty() {
+            return Ok(ZkHash::ZERO);
+        }
+        if let Some(leaf) = self.as_leaf() {
+            let value_hash = leaf.calc_value_hash::<H>()?;
+            return H::hash(Leaf as u64, [*leaf.node_key(), value_hash]);
+        }
+        let branch = self.as_branch().unwrap();
+        H::hash(
+            branch.node_type() as u64,
+            [branch.child_left, branch.child_right],
+        )
     }
 }
 
