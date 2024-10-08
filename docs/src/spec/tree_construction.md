@@ -17,5 +17,5 @@ of $2^{248}$ and won't have the ambiguity in the bit representation.
 
 We also apply an optimization to reduce the tree depth by contracting a subtree that has only one leaf node to a 
 single leaf node. For example, in the Figure 1, the tree has three nodes in total, with keys `0100`, `0010`, and `1010`.
-Because there is only one node that has key with suffix `00`, the leaf node for key `0100` only traverses the 
+Because there is only one node that has a key with suffix `00`, the leaf node for key `0100` only traverses the 
 suffix `00` and doesn't fully expand its key which would have resulted in depth of 4.

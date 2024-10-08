@@ -33,7 +33,7 @@ In scroll zkTrie, the Poseidon hash scheme is used.
 
 ### Key Hashing
 
-For any key which length is less or equal to 32 bytes, the `node_key` is hashed by:
+For any key whose length is less or equal to 32 bytes, the `node_key` is hashed by:
 ```
 let mut v_lo = [0u8; HASH_SIZE];
 let mut v_hi = [0u8; HASH_SIZE];
@@ -137,7 +137,7 @@ The node key of this leaf node is derived from the storage key:
 node_key = key_hash(storage_key)
 ```
 
-The storage value is a `u256` value. The `flag` for the storage value is 1, showed below.
+The storage value is a `u256` value. The `flag` for the storage value is 1, shown below.
 
 ```
 +-------+
