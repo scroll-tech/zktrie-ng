@@ -96,8 +96,8 @@ impl LeafNode {
 
     /// Get the original key value that derives the `node_key`, kept here only for proof.
     #[inline]
-    pub fn node_key_preimage(&self) -> Option<[u8; 32]> {
-        self.node_key_preimage
+    pub fn node_key_preimage(&self) -> Option<&[u8; 32]> {
+        self.node_key_preimage.as_ref()
     }
 
     /// Get the value preimages stored in a leaf node.
@@ -106,28 +106,36 @@ impl LeafNode {
         &self.value_preimages
     }
 
-    /// Get the value preimages stored in a leaf node.
-    #[inline]
-    pub fn into_value_preimages(self) -> Box<[[u8; 32]]> {
-        self.value_preimages
-    }
-
     /// Get the compress flags stored in a leaf node.
     #[inline]
     pub fn compress_flags(&self) -> u32 {
         self.compress_flags
     }
 
+    /// Get the `value_hash` of the leaf node.
+    #[inline]
+    pub fn value_hash(&self) -> Option<&ZkHash> {
+        self.value_hash.get()
+    }
+
     /// Get the `value_hash`
     #[inline]
-    pub fn get_or_calc_value_hash<H: HashScheme>(&self) -> Result<&ZkHash, H::Error> {
-        self.value_hash
-            .get_or_try_init(|| H::hash_bytes_array(&self.value_preimages, self.compress_flags))
+    pub fn get_or_calc_value_hash<H: HashScheme>(&self) -> Result<ZkHash, H::Error> {
+        match self.value_hash() {
+            Some(hash) => Ok(*hash),
+            None => H::hash_bytes_array(self.value_preimages(), self.compress_flags()),
+        }
+    }
+
+    /// Get the value preimages stored in a leaf node.
+    #[inline]
+    pub fn into_value_preimages(self) -> Vec<[u8; 32]> {
+        self.value_preimages
     }
 }
 
 impl Debug for LeafNode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LeafNode")
             .field("node_key", &self.node_key)
             .field(
@@ -157,26 +165,62 @@ impl BranchNode {
 
     /// Get the left child hash.
     #[inline]
-    pub fn child_left(&self) -> &LazyNodeHash {
-        &self.child_left
+    pub fn child_left(&self) -> LazyNodeHash {
+        self.child_left.clone()
     }
 
     /// Get the right child hash.
     #[inline]
-    pub fn child_right(&self) -> &LazyNodeHash {
-        &self.child_right
+    pub fn child_right(&self) -> LazyNodeHash {
+        self.child_right.clone()
     }
 
-    /// Into the parts
+    /// As the parts
     #[inline]
-    pub fn as_parts(&self) -> (NodeType, &LazyNodeHash, &LazyNodeHash) {
-        (self.node_type, &self.child_left, &self.child_right)
+    pub fn as_parts(&self) -> (NodeType, LazyNodeHash, LazyNodeHash) {
+        (
+            self.node_type,
+            self.child_left.clone(),
+            self.child_right.clone(),
+        )
+    }
+}
+
+impl NodeKind {
+    /// is empty node
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        matches!(self, NodeKind::Empty)
     }
 
-    /// Into the parts
+    /// is leaf node
     #[inline]
-    pub fn into_parts(self) -> (NodeType, LazyNodeHash, LazyNodeHash) {
-        (self.node_type, self.child_left, self.child_right)
+    pub fn is_leaf(&self) -> bool {
+        matches!(self, NodeKind::Leaf(_))
+    }
+
+    /// is branch node
+    #[inline]
+    pub fn is_branch(&self) -> bool {
+        matches!(self, NodeKind::Branch(_))
+    }
+
+    /// as leaf node
+    #[inline]
+    pub fn as_leaf(&self) -> Option<&LeafNode> {
+        match self {
+            NodeKind::Leaf(leaf) => Some(leaf),
+            _ => None,
+        }
+    }
+
+    /// as branch node
+    #[inline]
+    pub fn as_branch(&self) -> Option<&BranchNode> {
+        match self {
+            NodeKind::Branch(branch) => Some(branch),
+            _ => None,
+        }
     }
 }
 
@@ -197,7 +241,7 @@ impl<H: HashScheme> Node<H> {
             Lazy::new(|| Arc::new(OnceCell::with_value(ZkHash::ZERO)));
         Node {
             node_hash: EMPTY_HASH.clone(),
-            data: NodeKind::Empty,
+            data: Arc::new(NodeKind::Empty),
             _hash_scheme: std::marker::PhantomData,
         }
     }
@@ -210,7 +254,7 @@ impl<H: HashScheme> Node<H> {
     ) -> Self {
         Node {
             node_hash: Arc::new(OnceCell::new()),
-            data: NodeKind::Branch(Arc::new(BranchNode {
+            data: Arc::new(NodeKind::Branch(BranchNode {
                 node_type,
                 child_left: child_left.into(),
                 child_right: child_right.into(),
@@ -226,14 +270,12 @@ impl<H: HashScheme> Node<H> {
         compress_flags: u32,
         node_key_preimage: Option<[u8; 32]>,
     ) -> Result<Self, H::Error> {
-        // let value_hash = H::hash_bytes_array(&value_preimages, compress_flags)?;
-        // let node_hash = H::hash(Leaf as u64, [node_key, value_hash])?;
         Ok(Node {
             node_hash: Arc::new(OnceCell::new()),
-            data: NodeKind::Leaf(Arc::new(LeafNode {
+            data: Arc::new(NodeKind::Leaf(LeafNode {
                 node_key,
                 node_key_preimage,
-                value_preimages: value_preimages.into_boxed_slice(),
+                value_preimages,
                 compress_flags,
                 value_hash: OnceCell::new(),
             })),
@@ -250,22 +292,20 @@ impl<H: HashScheme> Node<H> {
     /// Panics if the lazy hash is not resolved.
     #[inline]
     pub fn get_or_calculate_node_hash(&self) -> Result<&ZkHash, H::Error> {
-        match self.data {
-            NodeKind::Empty => Ok(unsafe { self.node_hash.get_unchecked() }),
-            NodeKind::Leaf(ref leaf) => {
-                let value_hash = leaf.get_or_calc_value_hash::<H>()?;
-                Ok(self
-                    .node_hash
-                    .get_or_try_init(|| H::hash(Leaf as u64, [leaf.node_key, *value_hash]))?)
-            }
-            NodeKind::Branch(ref branch) => {
-                let left = branch.child_left.unwrap_ref();
-                let right = branch.child_right.unwrap_ref();
-                Ok(self
-                    .node_hash
-                    .get_or_try_init(|| H::hash(branch.node_type as u64, [*left, *right]))?)
-            }
+        if self.data.is_empty() {
+            return Ok(unsafe { self.node_hash.get_unchecked() });
         }
+        if let Some(leaf) = self.data.as_leaf() {
+            let value_hash = leaf.get_or_calc_value_hash::<H>()?;
+            return self
+                .node_hash
+                .get_or_try_init(|| H::hash(Leaf as u64, [*leaf.node_key(), value_hash]));
+        }
+        let branch = self.data.as_branch().expect("infallible");
+        let left = branch.child_left.unwrap_ref();
+        let right = branch.child_right.unwrap_ref();
+        self.node_hash
+            .get_or_try_init(|| H::hash(branch.node_type() as u64, [*left, *right]))
     }
 
     /// Get the node hash unchecked
@@ -293,59 +333,37 @@ impl<H: HashScheme> Node<H> {
     /// Get the node type.
     #[inline]
     pub fn node_type(&self) -> NodeType {
-        match &self.data {
-            NodeKind::Empty => Empty,
-            NodeKind::Leaf(_) => Leaf,
-            NodeKind::Branch(b) => b.node_type,
+        if self.data.is_empty() {
+            return Empty;
         }
+        if self.data.is_leaf() {
+            return Leaf;
+        }
+        self.data.as_branch().expect("infallible").node_type()
     }
 
     /// check if the node is branch node
     #[inline]
     pub fn is_branch(&self) -> bool {
-        matches!(self.data, NodeKind::Branch(_))
+        self.data.as_branch().is_some()
     }
 
     /// check if the node is 'terminated', i.e. empty or leaf node
     #[inline]
     pub fn is_terminal(&self) -> bool {
-        self.node_type().is_terminal()
+        !self.is_branch()
     }
 
     /// Try as a leaf node.
     #[inline]
     pub fn as_leaf(&self) -> Option<&LeafNode> {
-        match &self.data {
-            NodeKind::Leaf(leaf) => Some(leaf),
-            _ => None,
-        }
+        self.data.as_leaf()
     }
 
     /// Try as a branch node.
     #[inline]
     pub fn as_branch(&self) -> Option<&BranchNode> {
-        match &self.data {
-            NodeKind::Branch(branch) => Some(branch),
-            _ => None,
-        }
-    }
-
-    /// Try into a leaf node.
-    #[inline]
-    pub fn into_leaf(self) -> Option<Arc<LeafNode>> {
-        match self.data {
-            NodeKind::Leaf(leaf) => Some(leaf),
-            _ => None,
-        }
-    }
-
-    /// Try into a branch node.
-    #[inline]
-    pub fn into_branch(self) -> Option<Arc<BranchNode>> {
-        match self.data {
-            NodeKind::Branch(branch) => Some(branch),
-            _ => None,
-        }
+        self.data.as_branch()
     }
 
     /// Encode the node into canonical bytes.
@@ -354,7 +372,10 @@ impl<H: HashScheme> Node<H> {
     ///
     /// Panics if the lazy hash is not resolved.
     pub fn canonical_value(&self, include_key_preimage: bool) -> Vec<u8> {
-        match &self.data {
+        if self.data.is_empty() {
+            return vec![Empty as u8];
+        }
+        match self.data.as_ref() {
             NodeKind::Leaf(leaf) => {
                 let mut bytes = Vec::with_capacity(
                     1 + HASH_SIZE + size_of::<u32>() + 32 * leaf.value_preimages.len() + 1,
@@ -383,9 +404,7 @@ impl<H: HashScheme> Node<H> {
                 bytes.extend_from_slice(branch.child_right.unwrap_ref().as_ref());
                 bytes
             }
-            NodeKind::Empty => {
-                vec![Empty as u8]
-            }
+            _ => unreachable!(),
         }
     }
 }
@@ -398,8 +417,10 @@ impl<H: HashScheme> Debug for Node<H> {
             Some(hash) => debug.field("node_hash", hash),
             None => debug.field("node_hash", &"Unresolved"),
         };
-        match &self.data {
-            NodeKind::Empty => debug.field("node_type", &Empty),
+        if self.data.is_empty() {
+            return debug.field("node_type", &Empty).finish();
+        }
+        match self.data.as_ref() {
             NodeKind::Leaf(leaf) => debug
                 .field("node_type", &Leaf)
                 .field("node_key", &leaf.node_key)
@@ -421,6 +442,7 @@ impl<H: HashScheme> Debug for Node<H> {
                 .field("node_type", &branch.node_type)
                 .field("child_left", &branch.child_left)
                 .field("child_right", &branch.child_right),
+            _ => unreachable!(),
         };
 
         debug.finish()

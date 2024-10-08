@@ -5,9 +5,9 @@ use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
 use rand::prelude::*;
 use std::hint::black_box;
 use zktrie::HashField;
-use zktrie_ng::db::HashMapDb;
-use zktrie_ng::hash::key_hasher::NoCacheHasher;
 use zktrie_ng::{
+    db::{kv::HashMapDb, NodeDb},
+    hash::key_hasher::NoCacheHasher,
     hash::{poseidon::Poseidon, HashScheme},
     trie::ZkTrie,
 };
@@ -28,11 +28,13 @@ fn bench_trie_update(c: &mut Criterion) {
     group.bench_with_input("zktrie-ng", &(k, values.clone()), |b, (k, values)| {
         b.iter_batched(
             || {
+                let trie_db = NodeDb::default();
                 let trie = ZkTrie::default();
-                (trie, k, values.clone())
+                (trie_db, trie, k, values.clone())
             },
-            |(mut trie, k, values)| {
-                trie.raw_update(k, values, black_box(0b11111)).unwrap();
+            |(trie_db, mut trie, k, values)| {
+                trie.raw_update(&trie_db, k, values, black_box(0b11111))
+                    .unwrap();
             },
             BatchSize::SmallInput,
         );
@@ -56,6 +58,7 @@ fn bench_trie_update(c: &mut Criterion) {
 fn bench_trie_operation(c: &mut Criterion) {
     let mut rng = SmallRng::seed_from_u64(42);
 
+    let mut trie_db = NodeDb::default();
     let mut trie = ZkTrie::default();
     let mut trie_old = TrieOld::new_zktrie_impl(SimpleDb::new()).unwrap();
 
@@ -66,25 +69,30 @@ fn bench_trie_operation(c: &mut Criterion) {
         let values: [[u8; 32]; 5] = rng.gen();
         let values = values.to_vec();
 
-        trie.raw_update(k, values.clone(), 0b11111).unwrap();
+        trie.raw_update(&trie_db, k, values.clone(), 0b11111)
+            .unwrap();
         let key = NodeOld::hash_bytes(&k).unwrap();
         trie_old.try_update(&key, 0b11111, values).unwrap();
         keys.push((Poseidon::hash_bytes(&k).unwrap(), key));
     }
 
-    trie.commit().unwrap();
+    trie.commit(&mut trie_db).unwrap();
     trie_old.prepare_root().unwrap();
     trie_old.commit().unwrap();
 
     let mut group = c.benchmark_group("Trie Get");
     keys.shuffle(&mut rng);
-    group.bench_with_input("zktrie-ng", &(&trie, &keys[..10]), |b, (trie, keys)| {
-        b.iter(|| {
-            keys.iter()
-                .map(|(key, _)| trie.get_node_by_key(key).unwrap())
-                .collect::<Vec<_>>()
-        });
-    });
+    group.bench_with_input(
+        "zktrie-ng",
+        &(&trie_db, &trie, &keys[..10]),
+        |b, (trie_db, trie, keys)| {
+            b.iter(|| {
+                keys.iter()
+                    .map(|(key, _)| trie.get_node_by_key(trie_db, key).unwrap())
+                    .collect::<Vec<_>>()
+            });
+        },
+    );
     group.bench_with_input("zktrie", &(&trie_old, &keys[..10]), |b, (trie, keys)| {
         b.iter(|| {
             keys.iter()
@@ -96,22 +104,28 @@ fn bench_trie_operation(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("Trie Delete");
     keys.shuffle(&mut rng);
-    group.bench_with_input("zktrie-ng", &(&trie, &keys[..10]), |b, (trie, keys)| {
-        b.iter_batched(
-            || {
-                let root = *trie.root().unwrap_ref();
-                let db = HashMapDb::from_map(false, trie.db().inner().clone());
-                let trie = ZkTrie::<Poseidon>::new_with_root(db, NoCacheHasher, root).unwrap();
-                (trie, keys)
-            },
-            |(mut trie, keys)| {
-                for (key, _) in keys.iter() {
-                    trie.delete_by_node_key(*key).unwrap();
-                }
-            },
-            BatchSize::SmallInput,
-        )
-    });
+    group.bench_with_input(
+        "zktrie-ng",
+        &(&trie_db, &trie, &keys[..10]),
+        |b, (trie_db, trie, keys)| {
+            b.iter_batched(
+                || {
+                    let root = *trie.root().unwrap_ref();
+                    let db = HashMapDb::from_map(false, trie_db.inner().inner().clone());
+                    let trie_db = NodeDb::new(db);
+                    let trie =
+                        ZkTrie::<Poseidon>::new_with_root(&trie_db, NoCacheHasher, root).unwrap();
+                    (trie_db, trie, keys)
+                },
+                |(trie_db, mut trie, keys)| {
+                    for (key, _) in keys.iter() {
+                        trie.delete_by_node_key(&trie_db, *key).unwrap();
+                    }
+                },
+                BatchSize::SmallInput,
+            )
+        },
+    );
     group.bench_with_input("zktrie", &(&trie_old, &keys[..10]), |b, (trie, keys)| {
         b.iter_batched(
             || {

@@ -1,5 +1,5 @@
 //! Middleware for kv database.
-use crate::db::{KVDatabase, KVDatabaseItem};
+use crate::db::kv::{KVDatabase, KVDatabaseItem};
 use crate::HashMap;
 use alloy_primitives::bytes::Bytes;
 use std::mem;

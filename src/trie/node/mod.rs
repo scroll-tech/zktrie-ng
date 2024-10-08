@@ -8,6 +8,10 @@ use NodeType::*;
 
 mod imp;
 
+mod rkyv_imp;
+use crate::hash::poseidon::Poseidon;
+pub use rkyv_imp::*;
+
 #[cfg(test)]
 mod tests;
 
@@ -22,6 +26,7 @@ pub const MAGIC_NODE_BYTES: &[u8] = b"THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2x
 /// - `Empty` (2) => replaced by `Empty` (5)
 /// - `DBEntryTypeRoot` (3)
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq)]
+#[repr(u8)]
 pub enum NodeType {
     /// Leaf node
     Leaf = 4,
@@ -36,14 +41,6 @@ pub enum NodeType {
     BranchLBRT = 8,
     /// branch node for both child are branch nodes.
     BranchLBRB = 9,
-}
-
-impl NodeType {
-    /// check if the node is 'terminated', i.e. empty or leaf node
-    #[inline(always)]
-    pub fn is_terminal(&self) -> bool {
-        matches!(self, Leaf | Empty)
-    }
 }
 
 /// A reference to another branch node that the node hash may not be calculated yet.
@@ -74,7 +71,7 @@ pub struct LeafNode {
     /// Store at most 256 `[u8; 32]` values as fields (represented by big endian integer),
     /// and the first 24 can be compressed (each 32 bytes consider as 2 fields),
     /// in hashing the compressed elements would be calculated first
-    value_preimages: Box<[[u8; 32]]>,
+    value_preimages: Vec<[u8; 32]>,
     /// use each bit for indicating the compressed flag for the first 24 fields
     compress_flags: u32,
     /// The hash of `value_preimages`.
@@ -93,14 +90,16 @@ pub struct BranchNode {
 }
 
 /// Three kinds of nodes in the merkle tree.
-#[derive(Clone)]
+#[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[archive(check_bytes)]
+#[archive_attr(derive(Debug))]
 pub enum NodeKind {
     /// An empty node.
     Empty,
     /// A leaf node.
-    Leaf(Arc<LeafNode>),
+    Leaf(LeafNode),
     /// A branch node.
-    Branch(Arc<BranchNode>),
+    Branch(BranchNode),
 }
 
 /// Node struct represents a node in the merkle tree.
@@ -111,11 +110,11 @@ pub enum NodeKind {
 /// - For `Leaf` node, it's computed by the hash of `Leaf` type and `[node_key, value_hash]`.
 /// - For `Branch` node, it's computed by the hash of `Branch` type and `[child_left, child_right]`.
 #[derive(Clone)]
-pub struct Node<H> {
+pub struct Node<H = Poseidon> {
     /// nodeHash is the cache of the hash of the node to avoid recalculating
     pub(crate) node_hash: Arc<OnceCell<ZkHash>>,
     /// The data of the node.
-    data: NodeKind,
+    pub(crate) data: Arc<NodeKind>,
     _hash_scheme: std::marker::PhantomData<H>,
 }
 
