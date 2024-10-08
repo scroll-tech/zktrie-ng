@@ -13,26 +13,28 @@
 //!         key_hasher::NoCacheHasher,
 //!         poseidon::Poseidon,
 //!     },
-//!     db::kv::HashMapDb,
+//!     db::{kv::HashMapDb, NodeDb},
 //! };
+//!
 //!
 //! // A ZkTrie using Poseidon hash scheme,
 //! // HashMap as backend kv database and NoCacheHasher as key hasher.
-//! type ZkTrie = trie::ZkTrie<Poseidon, HashMapDb, NoCacheHasher>;
+//! type ZkTrie = trie::ZkTrie<Poseidon, NoCacheHasher>;
 //!
-//! let mut trie = ZkTrie::new(HashMapDb::default(), NoCacheHasher);
+//! let mut trie_db = NodeDb::new(HashMapDb::default());
+//! let mut trie = ZkTrie::new(NoCacheHasher);
 //! // or this is default mode
 //! // let mut trie = ZkTrie::default();
 //!
-//! trie.raw_update(&[1u8; 32], vec![[1u8; 32]], 1).unwrap();
+//! trie.raw_update(&trie_db, &[1u8; 32], vec![[1u8; 32]], 1).unwrap();
 //!
-//! let values: [[u8; 32]; 1] = trie.get(&[1u8; 32]).unwrap().unwrap();
+//! let values: [[u8; 32]; 1] = trie.get(&trie_db, &[1u8; 32]).unwrap().unwrap();
 //! assert_eq!(values[0], [1u8; 32]);
 //!
 //! // zkTrie is lazy, won't update the backend database until `commit` is called.
 //! assert!(trie.is_dirty());
 //!
-//! trie.commit().unwrap();
+//! trie.commit(&mut trie_db).unwrap();
 //! ```
 //!
 //! ### On disk zkTrie using Poseidon hash

@@ -3,7 +3,7 @@
 //! This module provides a trait for databases, as well as some
 //! helper types and functions for working with databases.
 
-use crate::db::kv::{KVDatabase, KVDatabaseItem};
+use crate::db::kv::{HashMapDb, KVDatabase, KVDatabaseItem};
 use crate::hash::{HashScheme, ZkHash};
 use crate::trie::{Node, NodeKind, NodeViewer};
 use std::fmt::Debug;
@@ -14,6 +14,12 @@ pub mod kv;
 /// A wrapper to store a trie node in the database.
 pub struct NodeDb<KvDb> {
     db: KvDb,
+}
+
+impl Default for NodeDb<HashMapDb> {
+    fn default() -> Self {
+        Self::new(HashMapDb::default())
+    }
 }
 
 impl<KvDb: KVDatabase> NodeDb<KvDb> {

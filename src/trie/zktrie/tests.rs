@@ -1,9 +1,8 @@
 use super::*;
-use crate::db::kv::KVDatabase;
+use crate::db::kv::{HashMapDb, KVDatabase};
 use crate::hash::poseidon::tests::gen_random_bytes;
 use rand::random;
 use rand::seq::SliceRandom;
-use std::fmt::Display;
 use zktrie::HashField;
 use zktrie_rust::{db::SimpleDb, hash::AsHash, types::TrieHashScheme};
 
@@ -18,6 +17,7 @@ fn new_trie_old() -> TrieOld {
 fn test_simple() {
     let mut old_trie = new_trie_old();
 
+    let mut trie_db = NodeDb::default();
     let mut trie = ZkTrie::default();
 
     let k = [1u8; 32];
@@ -27,8 +27,8 @@ fn test_simple() {
     old_trie.try_update(&old_key, 1, v.clone()).unwrap();
     old_trie.prepare_root().unwrap();
 
-    trie.raw_update(k, v.clone(), 1).unwrap();
-    trie.commit().unwrap();
+    trie.raw_update(&mut trie_db, k, v.clone(), 1).unwrap();
+    trie.commit(&mut trie_db).unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 }
@@ -43,6 +43,7 @@ fn test_randoms() {
 fn test_random() {
     let mut old_trie = new_trie_old();
 
+    let mut trie_db = NodeDb::default();
     let mut trie = ZkTrie::default();
 
     let mut keys = Vec::new();
@@ -57,14 +58,15 @@ fn test_random() {
                 .try_update(&old_key, compression_flag, values.clone())
                 .unwrap();
 
-            trie.raw_update(k, values, compression_flag).unwrap();
+            trie.raw_update(&mut trie_db, k, values, compression_flag)
+                .unwrap();
 
             keys.push((k, old_key));
         }
 
         old_trie.prepare_root().unwrap();
         old_trie.commit().unwrap();
-        trie.commit().unwrap();
+        trie.commit(&mut trie_db).unwrap();
     }
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 
@@ -76,7 +78,7 @@ fn test_random() {
             .iter()
             .map(|n| n.value())
             .collect::<Vec<Vec<u8>>>();
-        let mut new_proof = trie.prove(k).unwrap();
+        let mut new_proof = trie.prove(&trie_db, k).unwrap();
         new_proof.pop(); // pop the magic bytes
 
         if old_proof != new_proof {
@@ -104,30 +106,30 @@ fn test_random() {
             .iter()
             .map(|n| n.value())
             .collect::<Vec<Vec<u8>>>();
-        let mut new_proof = trie.prove(k).unwrap();
+        let mut new_proof = trie.prove(&trie_db, k).unwrap();
         new_proof.pop(); // pop the magic bytes
 
         assert_eq!(old_proof, new_proof);
     }
 
-    // trie.full_gc(HashMapDb::default()).unwrap();
+    trie.full_gc(&mut trie_db, HashMapDb::default()).unwrap();
 
     for (k, _) in keys.iter() {
         let node_key = <NoCacheHasher as KeyHasher<Poseidon>>::hash(&NoCacheHasher, k).unwrap();
         // full gc didn't delete anything unexpected
-        trie.get_node_by_key(&node_key).unwrap();
+        trie.get_node_by_key(&trie_db, &node_key).unwrap();
     }
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
 
     for (k, old_key) in keys.choose_multiple(&mut rand::thread_rng(), 10) {
         old_trie.try_delete(old_key).unwrap();
-        trie.delete(k).unwrap();
+        trie.delete(&trie_db, k).unwrap();
     }
 
     old_trie.prepare_root().unwrap();
     old_trie.commit().unwrap();
-    trie.commit().unwrap();
+    trie.commit(&mut trie_db).unwrap();
 
     // println!("Old:");
     // print_old_trie(&old_trie, old_trie.root().clone(), 0);
@@ -170,14 +172,16 @@ fn print_old_trie(trie: &TrieOld, hash: AsHash<HashField>, level: usize) {
     };
 }
 
-impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
-    fn print_node(
+#[allow(dead_code)]
+impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
+    fn print_node<Db: KVDatabase>(
         &self,
+        db: &NodeDb<Db>,
         node_hash: LazyNodeHash,
         level: usize,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        let node = self.get_node_by_hash(node_hash).unwrap();
+        let node = self.get_node_by_hash(db, node_hash).unwrap();
 
         let lead_char = if level == 0 { "" } else { "├ " };
 
@@ -204,17 +208,11 @@ impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> ZkTrie<H, Db, K> {
                     branch.node_type(),
                     hash.as_slice()
                 )?;
-                self.print_node(branch.child_left().clone(), level + 1, f)?;
-                self.print_node(branch.child_right().clone(), level + 1, f)?;
+                self.print_node(db, branch.child_left().clone(), level + 1, f)?;
+                self.print_node(db, branch.child_right().clone(), level + 1, f)?;
             }
         };
 
         Ok(())
-    }
-}
-
-impl<H: HashScheme, Db: KVDatabase, K: KeyHasher<H>> Display for ZkTrie<H, Db, K> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.print_node(self.root.clone(), 0, f)
     }
 }
