@@ -29,6 +29,11 @@ impl<KvDb: KVDatabase> NodeDb<KvDb> {
         Self { db }
     }
 
+    /// Get inner db
+    pub fn inner(&self) -> &KvDb {
+        &self.db
+    }
+
     /// Into inner db
     pub fn into_inner(self) -> KvDb {
         self.db
