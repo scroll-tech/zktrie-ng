@@ -27,7 +27,7 @@ fn test_simple() {
     old_trie.try_update(&old_key, 1, v.clone()).unwrap();
     old_trie.prepare_root().unwrap();
 
-    trie.raw_update(&mut trie_db, k, v.clone(), 1).unwrap();
+    trie.raw_update(&trie_db, k, v.clone(), 1).unwrap();
     trie.commit(&mut trie_db).unwrap();
 
     assert_eq!(old_trie.root().as_ref(), trie.root.unwrap_ref().as_slice());
@@ -58,7 +58,7 @@ fn test_random() {
                 .try_update(&old_key, compression_flag, values.clone())
                 .unwrap();
 
-            trie.raw_update(&mut trie_db, k, values, compression_flag)
+            trie.raw_update(&trie_db, k, values, compression_flag)
                 .unwrap();
 
             keys.push((k, old_key));

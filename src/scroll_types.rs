@@ -7,8 +7,9 @@
 //! use poseidon_bn254::{Fr, Field};
 //! use rand::thread_rng;
 //! use revm_primitives::AccountInfo;
-//! use zktrie_ng::{hash::HashOutput, scroll_types::Account, trie::ZkTrie};
+//! use zktrie_ng::{hash::HashOutput, scroll_types::Account, trie::ZkTrie, db::NodeDb};
 //!
+//! let trie_db = NodeDb::default();
 //! let mut trie = ZkTrie::default();
 //!
 //! let address = address!("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
@@ -17,9 +18,9 @@
 //!
 //! let trie_account = Account::from_revm_account_with_storage_root(account, storage_root);
 //!
-//! trie.update(address, trie_account).unwrap();
+//! trie.update(&trie_db, address, trie_account).unwrap();
 //!
-//! let account: Account = trie.get(address).unwrap().unwrap();
+//! let account: Account = trie.get(&trie_db, address).unwrap().unwrap();
 //!
 //! assert_eq!(trie_account, account);
 //! ```
@@ -128,6 +129,7 @@ impl DecodeValueBytes for U256 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::NodeDb;
     use crate::hash::HashOutput;
     use crate::trie::ZkTrie;
     use alloy_primitives::address;
@@ -137,6 +139,7 @@ mod tests {
 
     #[test]
     fn test_account() {
+        let trie_db = NodeDb::default();
         let mut trie = ZkTrie::default();
 
         let address = address!("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
@@ -145,9 +148,12 @@ mod tests {
 
         let trie_account = Account::from_revm_account_with_storage_root(account, storage_root);
 
-        trie.update(address, trie_account).unwrap();
+        trie.update(&trie_db, address, trie_account).unwrap();
 
-        let account = trie.get::<Account, _>(address).unwrap().unwrap();
+        let account = trie
+            .get::<_, Account, _>(&trie_db, address)
+            .unwrap()
+            .unwrap();
 
         assert_eq!(trie_account, account);
     }
