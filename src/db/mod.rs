@@ -71,6 +71,10 @@ impl<KvDb: KVDatabase> NodeDb<KvDb> {
     }
 
     /// Put a archived node bytes into the database.
+    ///
+    /// # Safety
+    ///
+    /// The bytes must be valid rkyv archived `Node` bytes and the hash must be the hash of the node.
     pub unsafe fn put_archived_node_unchecked(
         &mut self,
         node_hash: ZkHash,
