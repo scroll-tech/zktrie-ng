@@ -24,6 +24,9 @@ pub trait KVDatabaseItem: From<Vec<u8>> + AsRef<[u8]> + Clone {
         value.to_vec().into()
     }
 
+    /// Construct a value from bytes.
+    fn from_bytes(bytes: Bytes) -> Self;
+
     /// Turn the value into a [`Bytes`].
     fn into_bytes(self) -> Bytes;
 }
@@ -138,6 +141,11 @@ pub trait KVDatabase {
 }
 
 impl KVDatabaseItem for Bytes {
+    #[inline]
+    fn from_bytes(bytes: Bytes) -> Self {
+        bytes
+    }
+
     #[inline]
     fn into_bytes(self) -> Bytes {
         self

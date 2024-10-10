@@ -10,7 +10,9 @@ mod imp;
 
 mod rkyv_imp;
 use crate::hash::poseidon::Poseidon;
-pub use rkyv_imp::*;
+pub use rkyv_imp::{
+    ArchivedBranchNode, ArchivedLeafNode, ArchivedNode, IBranchNode, ILeafNode, INode, NodeViewer,
+};
 
 #[cfg(test)]
 mod tests;
@@ -90,9 +92,7 @@ pub struct BranchNode {
 }
 
 /// Three kinds of nodes in the merkle tree.
-#[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive(check_bytes)]
-#[archive_attr(derive(Debug))]
+#[derive(Clone)]
 pub enum NodeKind {
     /// An empty node.
     Empty,

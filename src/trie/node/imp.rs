@@ -90,8 +90,8 @@ impl Eq for LazyNodeHash {}
 impl LeafNode {
     /// Get the `node_key` stored in a leaf node.
     #[inline]
-    pub fn node_key(&self) -> &ZkHash {
-        &self.node_key
+    pub fn node_key(&self) -> ZkHash {
+        self.node_key
     }
 
     /// Get the original key value that derives the `node_key`, kept here only for proof.
@@ -114,15 +114,15 @@ impl LeafNode {
 
     /// Get the `value_hash` of the leaf node.
     #[inline]
-    pub fn value_hash(&self) -> Option<&ZkHash> {
-        self.value_hash.get()
+    pub fn value_hash(&self) -> Option<ZkHash> {
+        self.value_hash.get().copied()
     }
 
     /// Get the `value_hash`
     #[inline]
     pub fn get_or_calc_value_hash<H: HashScheme>(&self) -> Result<ZkHash, H::Error> {
         match self.value_hash() {
-            Some(hash) => Ok(*hash),
+            Some(hash) => Ok(hash),
             None => H::hash_bytes_array(self.value_preimages(), self.compress_flags()),
         }
     }
@@ -299,7 +299,7 @@ impl<H: HashScheme> Node<H> {
             let value_hash = leaf.get_or_calc_value_hash::<H>()?;
             return self
                 .node_hash
-                .get_or_try_init(|| H::hash(Leaf as u64, [*leaf.node_key(), value_hash]));
+                .get_or_try_init(|| H::hash(Leaf as u64, [leaf.node_key(), value_hash]));
         }
         let branch = self.data.as_branch().expect("infallible");
         let left = branch.child_left.unwrap_ref();
