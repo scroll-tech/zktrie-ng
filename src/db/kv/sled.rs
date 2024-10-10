@@ -56,10 +56,17 @@ impl SledDb {
 }
 
 impl KVDatabaseItem for IVec {
+    #[inline]
     fn from_slice(value: &[u8]) -> Self {
         IVec::from(value)
     }
 
+    #[inline]
+    fn from_bytes(bytes: Bytes) -> Self {
+        IVec::from(bytes.to_vec())
+    }
+
+    #[inline]
     fn into_bytes(self) -> Bytes {
         Bytes::from(self.to_vec())
     }
