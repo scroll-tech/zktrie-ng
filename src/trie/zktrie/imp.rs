@@ -342,7 +342,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
     }
 
     /// Get a node from the trie by node hash
-    #[instrument(level = "trace", skip(self, db, node_hash), ret)]
+    #[instrument(level = "trace", skip(self, db, node_hash))]
     pub fn get_node_by_hash<Db: KVDatabase>(
         &self,
         db: &NodeDb<Db>,
@@ -376,7 +376,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
     }
 
     /// Get a node from the trie by node key
-    #[instrument(level = "trace", skip(self, db, node_key), ret)]
+    #[instrument(level = "trace", skip(self, db, node_key))]
     pub fn get_node_by_key<Db: KVDatabase>(
         &self,
         db: &NodeDb<Db>,
@@ -389,7 +389,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
                 NodeType::Empty => return Ok(INode::Owned(Node::<H>::empty())),
                 NodeType::Leaf => {
                     let leaf = n.as_leaf().unwrap();
-                    return if leaf.node_key() == node_key {
+                    return if leaf.node_key() == *node_key {
                         Ok(n)
                     } else if i != H::TRIE_MAX_LEVELS - 1 {
                         // the node is compressed, we just reached another leaf node
@@ -461,7 +461,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
                     n.as_branch().unwrap().as_parts();
                 let leaf_node_key = leaf.as_leaf().unwrap().node_key();
 
-                let new_parent_node = if get_path(leaf_node_key, level) {
+                let new_parent_node = if get_path(&leaf_node_key, level) {
                     // go right
                     let (new_node_hash, is_terminal) =
                         self.add_leaf(db, leaf, current_node_right_child.clone(), level + 1)?;
@@ -532,8 +532,8 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
             return Err(ZkTrieError::MaxLevelReached);
         }
 
-        let old_leaf_node_key = *old_leaf.as_leaf().unwrap().node_key();
-        let new_leaf_node_key = *new_leaf.as_leaf().unwrap().node_key();
+        let old_leaf_node_key = old_leaf.as_leaf().unwrap().node_key();
+        let new_leaf_node_key = new_leaf.as_leaf().unwrap().node_key();
 
         let old_leaf_path = get_path(&old_leaf_node_key, level);
         let new_leaf_path = get_path(&new_leaf_node_key, level);
@@ -592,7 +592,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
         match root.node_type() {
             NodeType::Empty => Err(ZkTrieError::NodeNotFound),
             NodeType::Leaf => {
-                if root.as_leaf().unwrap().node_key() != &node_key {
+                if root.as_leaf().unwrap().node_key() != node_key {
                     Err(ZkTrieError::NodeNotFound)
                 } else {
                     self.gc_nodes.insert(root_hash);
@@ -679,7 +679,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
         match node_hash {
             LazyNodeHash::Hash(node_hash) => {
                 if let Some(node) = self.dirty_leafs.remove(&node_hash) {
-                    db.put_node(&node).map_err(ZkTrieError::Db)?;
+                    db.put_node(node).map_err(ZkTrieError::Db)?;
                 }
                 Ok(node_hash)
             }
@@ -691,7 +691,7 @@ impl<H: HashScheme, K: KeyHasher<H>> ZkTrie<H, K> {
                     let node_hash = *node
                         .get_or_calculate_node_hash()
                         .map_err(ZkTrieError::Hash)?;
-                    db.put_node(&node).map_err(ZkTrieError::Db)?;
+                    db.put_node(node).map_err(ZkTrieError::Db)?;
                     Ok(node_hash)
                 }
                 INode::Archived(viewer) => Ok(viewer.node_hash),

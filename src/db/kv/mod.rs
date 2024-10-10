@@ -18,7 +18,7 @@ pub mod sled;
 pub use sled::SledDb;
 
 /// Necessary trait for values stored in a key-value database.
-pub trait KVDatabaseItem: From<Vec<u8>> + AsRef<[u8]> + Clone {
+pub trait KVDatabaseItem: From<Vec<u8>> + From<Bytes> + AsRef<[u8]> + Clone {
     /// Construct a value from a slice.
     fn from_slice(value: &[u8]) -> Self {
         value.to_vec().into()

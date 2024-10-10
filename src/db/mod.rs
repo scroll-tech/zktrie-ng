@@ -58,14 +58,14 @@ impl<KvDb: KVDatabase> NodeDb<KvDb> {
     }
 
     /// Put a node into the database.
-    pub fn put_node<H: HashScheme>(&mut self, node: &Node<H>) -> Result<(), KvDb::Error> {
-        let node_hash = node.node_hash.get().expect("Node hash not calculated");
+    pub fn put_node<H: HashScheme>(&mut self, node: Node<H>) -> Result<(), KvDb::Error> {
+        let node_hash = *node.node_hash.get().expect("Node hash not calculated");
         if let NodeKind::Branch(branch) = node.data.as_ref() {
             if !branch.child_right().is_resolved() || !branch.child_left().is_resolved() {
                 panic!("Cannot archive branch node with unresolved child hash");
             }
         }
-        let bytes = rkyv::to_bytes::<_, 1024>(node).expect("infallible");
+        let bytes = node.archived();
         self.db.put(node_hash.as_ref(), bytes.as_ref())?;
         Ok(())
     }
@@ -74,9 +74,10 @@ impl<KvDb: KVDatabase> NodeDb<KvDb> {
     pub unsafe fn put_archived_node_unchecked(
         &mut self,
         node_hash: ZkHash,
-        bytes: Bytes,
+        bytes: Vec<u8>,
     ) -> Result<(), KvDb::Error> {
-        self.db.put_owned(node_hash, bytes)
+        self.db.put_owned(node_hash.0, bytes)?;
+        Ok(())
     }
 
     /// Get a node from the database.
