@@ -31,7 +31,7 @@ tracing = "0.1"
 
 [dependencies.revm-primitives]
 git = "https://github.com/scroll-tech/revm"
-branch = "scroll-evm-executor/v42"
+branch = "scroll-evm-executor/v49"
 default-features = false
 features = ["scroll", "scroll-poseidon-codehash"]
 optional = true
@@ -70,9 +70,7 @@ sled_compression = ["sled", "sled/zstd"]
 [patch.crates-io]
 ruint = { git = "https://github.com/scroll-tech/uint.git", branch = "v1.12.3" }
 
-alloy-eips = { git = "https://github.com/scroll-tech/alloy.git", branch = "v0.3.0" }
+alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.3.2" }
+alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.3.2" }
 
-alloy-eip2930 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
-alloy-eip7702 = { git = "https://github.com/scroll-tech/alloy-eips", branch = "v0.1.0" }
-
-alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.0" }
+alloy-primitives = { git = "https://github.com/scroll-tech/alloy-core", branch = "v0.8.10" }
