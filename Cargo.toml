@@ -27,6 +27,7 @@ rkyv = "0.8"
 sled = { version = "0.34", optional = true }
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1.0"
+tiny-keccak = { version = "2.0", features = ["keccak"] }
 tracing = "0.1"
 
 [dependencies.revm-primitives]

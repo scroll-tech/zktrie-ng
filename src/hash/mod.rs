@@ -3,6 +3,7 @@
 use alloy_primitives::FixedBytes;
 use std::fmt::Debug;
 
+pub mod keccak;
 pub mod poseidon;
 
 pub mod key_hasher;
@@ -23,6 +24,18 @@ pub trait HashOutput: Copy + Clone + Sized {
 
     /// Convert the 32-byte big-endian array into the output.
     fn from_canonical_repr(repr: ZkHash) -> Option<Self>;
+}
+
+impl HashOutput for ZkHash {
+    #[inline]
+    fn as_canonical_repr(&self) -> ZkHash {
+        *self
+    }
+
+    #[inline]
+    fn from_canonical_repr(repr: ZkHash) -> Option<Self> {
+        Some(repr)
+    }
 }
 
 /// HashScheme is a trait that defines how to hash two 32-byte arrays with a domain.
