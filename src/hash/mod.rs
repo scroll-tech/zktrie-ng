@@ -44,7 +44,7 @@ pub trait HashScheme: Debug + Copy + Clone + Sized + Send + Sync {
     const TRIE_MAX_LEVELS: usize;
 
     /// The error type for hashing.
-    type Error: std::error::Error + Send + Sync;
+    type Error: std::error::Error + Send + Sync + 'static;
 
     /// Try to convert a byte array to a [`ZkHash`].
     fn new_hash_try_from_bytes(bytes: &[u8]) -> Result<ZkHash, Self::Error>;
