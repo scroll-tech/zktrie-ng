@@ -39,7 +39,7 @@ impl HashOutput for ZkHash {
 }
 
 /// HashScheme is a trait that defines how to hash two 32-byte arrays with a domain.
-pub trait HashScheme: Debug + Copy + Clone + Sized {
+pub trait HashScheme: Debug + Copy + Clone + Sized + Send + Sync {
     /// Max level of the trie when using this hash scheme.
     const TRIE_MAX_LEVELS: usize;
 
