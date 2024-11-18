@@ -19,8 +19,11 @@ pub type ZkHash = FixedBytes<HASH_SIZE>;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+/// Hash scheme kind
 pub enum HashSchemeKind {
+    /// Poseidon hash scheme.
     Poseidon,
+    /// Keccak hash scheme.
     Keccak,
 }
 
