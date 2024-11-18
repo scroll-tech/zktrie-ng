@@ -16,6 +16,12 @@ const HASH_DOMAIN_ELEMS_BASE: u64 = 256;
 /// A 32-byte big endian hash.
 pub type ZkHash = FixedBytes<HASH_SIZE>;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum HashSchemeKind {
+    Poseidon,
+    Keccak,
+}
+
 /// The trait for hashing output.
 #[must_use]
 pub trait HashOutput: Copy + Clone + Sized {

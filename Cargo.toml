@@ -24,6 +24,7 @@ num-traits = "0.2"
 once_cell = "1.19"
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master" }
 rkyv = "0.8"
+serde = { version = "1", features = ["derive"] }
 sled = { version = "0.34", optional = true }
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1.0"

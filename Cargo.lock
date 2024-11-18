@@ -2606,6 +2606,7 @@ dependencies = [
  "rand",
  "revm-primitives",
  "rkyv",
+ "serde",
  "sled",
  "strum 0.26.3",
  "thiserror",
