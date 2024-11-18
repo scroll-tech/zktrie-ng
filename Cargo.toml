@@ -17,6 +17,7 @@ only-used-in-recursion = "allow"
 
 [dependencies]
 alloy-primitives = { version = "0.8.0", features = ["rkyv"] }
+clap = { version = "4", features = ["derive"], optional = true }
 hashbrown = { version = "0.14", optional = true }
 hex = "0.4"
 num-derive = "0.4"
@@ -24,9 +25,11 @@ num-traits = "0.2"
 once_cell = "1.19"
 poseidon-bn254 = { git = "https://github.com/scroll-tech/poseidon-bn254", branch = "master" }
 rkyv = "0.8"
+serde = { version = "1", features = ["derive"], optional = true }
 sled = { version = "0.34", optional = true }
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1.0"
+tiny-keccak = { version = "2.0", features = ["keccak"] }
 tracing = "0.1"
 
 [dependencies.revm-primitives]
@@ -55,6 +58,8 @@ harness = false
 [features]
 default = ["bn254", "hashbrown"]
 
+clap = ["dep:clap"]
+
 hashbrown = ["dep:hashbrown"]
 
 bn254 = ["poseidon-bn254/bn254"]
@@ -62,6 +67,8 @@ halo2curves_v1 = ["poseidon-bn254/halo2curves_v1"]
 halo2curves_v3 = ["poseidon-bn254/halo2curves_v3"]
 
 scroll = ["dep:revm-primitives"]
+
+serde = ["dep:serde"]
 
 sled = ["dep:sled"]
 sled_compression = ["sled", "sled/zstd"]

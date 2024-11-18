@@ -3,6 +3,7 @@
 use alloy_primitives::FixedBytes;
 use std::fmt::Debug;
 
+pub mod keccak;
 pub mod poseidon;
 
 pub mod key_hasher;
@@ -15,6 +16,29 @@ const HASH_DOMAIN_ELEMS_BASE: u64 = 256;
 /// A 32-byte big endian hash.
 pub type ZkHash = FixedBytes<HASH_SIZE>;
 
+#[derive(
+    Default,
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+/// Hash scheme kind
+pub enum HashSchemeKind {
+    /// Poseidon hash scheme.
+    #[default]
+    Poseidon,
+    /// Keccak hash scheme.
+    Keccak,
+}
+
 /// The trait for hashing output.
 #[must_use]
 pub trait HashOutput: Copy + Clone + Sized {
@@ -25,13 +49,25 @@ pub trait HashOutput: Copy + Clone + Sized {
     fn from_canonical_repr(repr: ZkHash) -> Option<Self>;
 }
 
+impl HashOutput for ZkHash {
+    #[inline]
+    fn as_canonical_repr(&self) -> ZkHash {
+        *self
+    }
+
+    #[inline]
+    fn from_canonical_repr(repr: ZkHash) -> Option<Self> {
+        Some(repr)
+    }
+}
+
 /// HashScheme is a trait that defines how to hash two 32-byte arrays with a domain.
-pub trait HashScheme: Debug + Copy + Clone + Sized {
+pub trait HashScheme: Debug + Copy + Clone + Sized + Send + Sync {
     /// Max level of the trie when using this hash scheme.
     const TRIE_MAX_LEVELS: usize;
 
     /// The error type for hashing.
-    type Error: std::error::Error;
+    type Error: std::error::Error + Send + Sync + 'static;
 
     /// Try to convert a byte array to a [`ZkHash`].
     fn new_hash_try_from_bytes(bytes: &[u8]) -> Result<ZkHash, Self::Error>;

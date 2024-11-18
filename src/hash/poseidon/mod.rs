@@ -17,7 +17,7 @@ const HASH_DOMAIN_BYTE32: u64 = 2 * HASH_DOMAIN_ELEMS_BASE;
 /// hash and the key space doesn't fully occupy the range of power of two. It can
 /// lead to an ambiguous bit representation of the key in the finite field
 /// causing a soundness issue in the zk circuit.
-pub const NODE_KEY_VALID_BYTES: u32 = 31;
+const NODE_KEY_VALID_BYTES: u32 = 31;
 
 /// The maximum trie depth.
 const TRIE_MAX_LEVELS: usize = (NODE_KEY_VALID_BYTES * 8) as usize;
