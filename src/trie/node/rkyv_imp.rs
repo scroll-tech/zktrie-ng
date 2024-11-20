@@ -402,6 +402,12 @@ impl ArchivedNode {
         }
     }
 
+    /// Get the node hash.
+    #[inline]
+    pub unsafe fn get_node_hash_unsafe(&self) -> Option<ZkHash> {
+        self.node_hash.as_ref().map(|hash| ZkHash::new(hash.0))
+    }
+
     /// Calculate the node hash.
     pub fn calculate_node_hash<H: HashScheme>(&self) -> Result<ZkHash, H::Error> {
         if self.data.is_empty() {
